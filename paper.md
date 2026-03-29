@@ -580,20 +580,26 @@ One command. The auditor immediately sees `uninitializedArray` — a function th
 **Step 2: Inspect unsafe blocks** (Rust, [rust-lang/rust](https://github.com/rust-lang/rust) `library/`)
 
 ```bash
-$ rg "unsafe fn" --type rust library/alloc/src/alloc.rs -A 20 | head -25
+$ rg "unsafe fn" --type rust library/alloc/src/alloc.rs -A 10
 ```
 
 ```text
-pub unsafe fn exchange_malloc(size: usize, align: usize) -> *mut u8 {
-    let layout = unsafe { Layout::from_size_align_unchecked(size, align) };
-    match Global.allocate(layout) {
-        Ok(ptr) => ptr.as_mut_ptr(),
-        Err(_) => handle_alloc_error(layout),
+pub unsafe fn alloc(layout: Layout) -> *mut u8 {
+    unsafe {
+        // Make sure we don't accidentally allow omitting the allocator shim in
+        // stable code until it is actually stabilized.
+        __rust_no_alloc_shim_is_unstable_v2();
+
+        __rust_alloc(layout.size(), layout.alignment())
     }
+}
+...
+pub unsafe fn dealloc(ptr: *mut u8, layout: Layout) {
+    unsafe { dealloc_nonnull(NonNull::new_unchecked(ptr), layout) }
 }
 ```
 
-One command. The auditor sees the full function: its unsafe contract (`unsafe fn` — callers must ensure valid size and alignment), its interior unsafe operation (`Layout::from_size_align_unchecked`), and the surrounding logic. An agent can review this in a single pass and ask for more context only if needed.
+One command. The auditor sees the full function: its unsafe contract (`unsafe fn` — callers must ensure valid layout), its interior unsafe operations (`__rust_alloc`, `NonNull::new_unchecked`), and the `// SAFETY:`-style comments. An agent can review this in a single pass and ask for more context only if needed.
 
 **The gap:** D gives you step 1 but not step 2 — `@system` code is implicit, so the auditor can't grep for the unsafe functions that `uninitializedArray` depends on. Rust gives you step 2 but not step 1 — there's no way to grep for which safe functions wrap those unsafe operations. Each language provides half the workflow.
 
