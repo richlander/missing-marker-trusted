@@ -145,7 +145,12 @@ The question: how easily can we find the code that needs review — trust bounda
 
 One might ask why grep is the right proxy rather than an LSP or compiler query. The answer is that code review — the primary context where safety-critical code is evaluated — operates at the grep level, not the LSP level. When reviewing a pull request in GitHub, GitLab, or any diff view, the reviewer sees source text. There is no LSP connected to the diff view. There is no way to "go to definition" or "find all references" from a PR comment. The reviewer's tools are their eyes and the browser's Ctrl+F.
 
-Source code should stand on its own for safety review. An LSP enhances productivity during development, but the safety story for a language cannot depend on a live compiler being on-hand at the moment of review. If a trust boundary is only identifiable through an LSP query, it is invisible in the context where it most needs to be seen.
+There are two worldviews on this:
+
+1. **All safety analysis will be done via agents** that always have access to the compiler and/or LSP. Under this view, grep-discoverability is a nice-to-have — the agent can always ask the LSP.
+2. **Safety analysis will be done by a variety of semantic actors in a variety of environments** — agents with LSPs, agents without them, humans in IDE diff views, humans reviewing PRs on their phone, compliance auditors reading exported source. Grep is a meaningful lowest-common-denominator proxy for all of these.
+
+This paper assumes the second worldview. Source code should stand on its own for safety review. An LSP enhances productivity during development, but the safety story for a language cannot depend on a live compiler being on-hand at the moment of review. If a trust boundary is only identifiable through an LSP query, it is invisible in every context except an active IDE session.
 
 This is the same argument behind using `jq` as a schema design proxy. If you need a specialized tool to understand whether a schema is well-designed, the schema has failed at self-description. If you need an LSP to understand whether a method is a trust boundary, the language has failed at self-description.
 
