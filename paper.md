@@ -6,7 +6,7 @@ I've been reading the design notes from C#, D, Rust, and Swift design communitie
 
 Source: https://github.com/dotnet/designs/blob/main/accepted/2025/memory-safety/memory-safety.md
 
-That's a compelling vision. Our ambition is that agents generate most C# code going forward and that they can help with migration to our new memory safety model. The vision implies a lossless design with clear attestation at the trust boundary. Removing `unsafe` anywhere should result in compiler errors. Lossy designs get us into Jia Tang territory.
+That's a compelling vision. Our ambition is that agents generate most C# code going forward and that they can help with migration to our new memory safety model. The vision implies a lossless design with clear attestation at the trust boundary. Removing `unsafe` anywhere should result in compiler errors. Lossy designs get us into Jia Tan territory.
 
 My overall take:
 
@@ -407,15 +407,21 @@ This distinction matters for incident response. When a safety-critical bug is fo
 
 ### Defense in depth: the xz backdoor lesson
 
-The introduction references "Jia Xue Tang territory" — the [xz/liblzma backdoor](https://en.wikipedia.org/wiki/XZ_Utils_backdoor) discovered in 2024, where a contributor spent years building trust and then introduced malicious code through diffs that didn't attract scrutiny. There are three tiers of defense against this kind of change:
+The introduction references "Jia Tan territory" — the [xz/liblzma backdoor](https://en.wikipedia.org/wiki/XZ_Utils_backdoor) discovered in 2024, where a contributor using the name "Jia Tan" spent years building trust and then introduced a backdoor into the xz compression library through diffs that didn't attract scrutiny. There are three tiers of defense against this kind of change:
 
 1. **Compiler errors** — the change cannot land without being addressed. The author must explicitly modify the safety annotation. This is the gold standard.
-2. **Tool warnings** (valgrind, analyzers, etc.) — the change can land, but produces signals after the fact. Helpful, but the attacker can volunteer to "fix" the warnings. This is exactly what happened with xz — valgrind produced warnings relatively quickly, but Jia Xue Tang handled the response and produced a plausible backstory.
+2. **Tool warnings** (valgrind, analyzers, etc.) — the change can land, but produces signals after the fact. Helpful, but the attacker can volunteer to "fix" the warnings.
 3. **Diff review** — the change is visible in version control but has no structural salience. Requires a reviewer to notice and understand the significance. This is the weakest defense.
 
-The xz backdoor passed tier 3 (diffs existed, reviewers missed them), eventually triggered tier 2 (valgrind flagged issues, the attacker handled the response), and was never subjected to tier 1 (no compiler enforcement existed for the affected code path).
+The xz backdoor is instructive because it engaged all three tiers:
 
-A `trusted` design operates at tier 1. Removing `trusted` from a method with interior `unsafe` blocks is a compiler error. Removing the `unsafe` blocks from a `trusted` method is a compiler warning (unnecessary attestation). The attacker can't quietly absorb these the way the xz attacker absorbed valgrind output — they would have to explicitly change the safety annotations, producing a structurally remarkable diff that names the safety model directly.
+- **Tier 3 (diff review)** — the malicious changes existed in version control. Reviewers missed them. The diffs were structurally unremarkable.
+- **Tier 2 (tool warnings)** — the backdoor caused valgrind errors due to stack layout mismatches. Valgrind detected the problem. But Jia Tan [claimed it was a GCC bug](https://github.com/tukaani-project/xz/commit/82ecc538193b380a21622aea02b0ba078e7ade92), submitted a misdirecting "fix," and then quietly updated the malicious test files the next day. He had also preemptively [disabled ifunc in oss-fuzz builds](https://github.com/google/oss-fuzz/pull/10667) months earlier to prevent the fuzzer from catching the backdoor. The attacker actively subverted the tier 2 tooling because he had commit access and the warnings were advisory.
+- **Tier 1 (compiler errors)** — no compiler enforcement existed for the affected code path. The backdoor was never subjected to this tier.
+
+The key distinction between tier 2 and tier 1 is that advisory warnings can be "fixed" by an attacker with commit access. Compiler errors cannot be quietly absorbed — they require an explicit change to the safety model itself.
+
+A `trusted` design operates at tier 1. Removing `trusted` from a method with interior `unsafe` blocks is a compiler error. Removing the `unsafe` blocks from a `trusted` method is a compiler warning (unnecessary attestation). The attacker would have to explicitly change the safety annotations, producing a structurally remarkable diff that names the safety model directly — not a diff that looks like routine cleanup.
 
 Lossy designs — where a trust boundary has no marker — operate at tier 3 at best. The diff that removes an `unsafe` block from an unmarked method looks like routine cleanup. There is no compiler error. There is no annotation change in the signature. The safety attestation simply vanishes from the code without any toolchain signal that something important happened.
 
