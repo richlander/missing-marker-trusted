@@ -427,6 +427,16 @@ Lossy designs — where a trust boundary has no marker — operate at tier 3 at 
 
 D's `@trusted` and the proposed C# `trusted` keyword both produce lossless attestations at tier 1. Rust's and Swift's trust boundaries do not.
 
+### Binary distribution raises the bar
+
+The defense tiers interact differently depending on how code is distributed. Rust and Swift are primarily source-distributed — consumers compile from source and see compiler warnings during their own builds. A pragma that suppresses a warning is visible in the source diff. Consumers can audit safety decisions themselves.
+
+C#/.NET is primarily binary-distributed. Consumers get compiled assemblies. Compiler warnings during the library author's build are invisible to consumers. The consumer sees only the result: either the API compiles cleanly against their code or it doesn't. This means **errors are the only defense that reliably reaches consumers**. Warnings are swallowed at build time by the library author and never cross the binary boundary.
+
+This raises the bar for C#: anything that is "just a warning" in the C# world is effectively invisible to the majority of consumers. The design should bias toward errors for safety-critical signals.
+
+Swift faces a related challenge with Apple's own frameworks. During the [SE-0458 discussion](https://forums.swift.org/t/se-0458-opt-in-strict-memory-safety-checking/77274), it was noted that Apple's Combine framework is "written in Swift, but _not_ safe (by Swift 6's standard), and unlikely to become safe nor even acquire `unsafe` annotations." Douglas Gregor acknowledged this as "a hole" in the model. When closed-source, binary-distributed frameworks don't adopt safety annotations, consumers must trust those decisions with no ability to audit or even see the warnings that were (or weren't) produced during the framework's build. The safety model's guarantees stop at the binary boundary.
+
 ## Agent-Assisted Maintenance
 
 Agent-assisted code migration and maintenance is a core part of our vision for memory safety adoption. The [memory safety design](https://github.com/dotnet/designs/blob/main/accepted/2025/memory-safety/memory-safety.md) states: "We recommend that developers configure their AI systems and build tools to permit only safe code. In the new AI paradigm, the compiler and analyzers become the final authority on safety." The [follow-up PR](https://github.com/dotnet/csharplang/pull/10058) goes further: "High-confidence AI-assisted automation of the migration process flow is a part of the feature design."
