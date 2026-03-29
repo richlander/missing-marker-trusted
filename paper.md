@@ -372,19 +372,19 @@ These methods are unsafe by inheritance from the containing type — invisible t
 
 C# currently offers the least discoverability among the four languages.
 
-## Discoverability Grades
+## Discoverability and Auditing Grades
 
-We score each language on three audit tasks — finding trust boundaries, finding unsafe declarations, and disambiguating outer (caller) vs. interior unsafe — weighted by importance to the audit workflow. The grading methodology is detailed in [Appendix: Scoring Methodology](#appendix-scoring-methodology).
+We score each language on two dimensions — **discovery** (can you find the code that needs review?) and **auditing** (does the design support the review workflow?) — weighted by importance. The grading methodology is detailed in [Appendix: Scoring Methodology](#appendix-scoring-methodology).
 
 | Language | Grade | Summary |
 |----------|-------|---------|
-| C# (proposed) | **A** | Both trust boundaries (`trusted`) and unsafe declarations (`unsafe`) are discoverable via clean grep. The only language where the complete audit graph is constructible from grep alone. |
-| D | **B** | Trust boundaries (`@trusted`) are perfectly discoverable. Unsafe code (`@system`) is implicit and invisible to grep — you can find the boundaries but not the code they depend on. |
-| Rust | **C** | Unsafe declarations (`unsafe fn`) are perfectly discoverable. Trust boundaries require an 80-line awk script to approximate. You can find the unsafe code but not the attestations. |
-| Swift | **D** | Unsafe declarations (`@unsafe`) require `-A 1` context. Trust boundaries require a script. Neither side is cleanly discoverable. |
-| C# (current) | **D** | Unsafe declarations are discoverable but ambiguous (mixed with blocks). Trust boundaries require a script. No disambiguation between outer and interior unsafe. |
+| C# (proposed)* | **B+** | Both trust boundaries (`trusted`) and unsafe declarations (`unsafe`) are discoverable via clean grep. Auditing clarity depends on design decisions not yet made. With those decisions: **A**. |
+| D | **C+** | Trust boundaries (`@trusted`) are perfectly discoverable. Unsafe code (`@system`) is implicit and invisible to grep. Outer/inner disambiguation is clear, but `@system` is not a caller contract. |
+| Rust | **C** | Unsafe declarations (`unsafe fn`) are perfectly discoverable with full auditing clarity — outer unsafe is a caller contract, inner unsafe is implementation-only. Trust boundaries require an 80-line awk script. |
+| Swift | **D+** | Unsafe declarations (`@unsafe`) require `-A 1` context. Trust boundaries require a script. Has full auditing clarity like Rust. |
+| C# (current) | **D** | Unsafe declarations are discoverable but ambiguous. Trust boundaries require a script. No outer/inner disambiguation, no caller contract, no implementation-only scoping. |
 
-C# moves from **D** to **A** with the addition of `trusted` — from trailing last to leading on the metrics that matter most for auditing.
+*C# (proposed) scores reflect only the `trusted` keyword addition. Two further design decisions — making `unsafe` on a method a caller contract and ensuring interior `unsafe` blocks are implementation-only — would raise the grade to **A**. Both Rust and Swift have already made these decisions.
 
 ## Lossless Attestations
 
@@ -517,41 +517,68 @@ Each audit task is scored on a 0–2 scale based on the grep difficulty required
 
 ### Audit tasks and weights
 
-Three tasks are scored, weighted by importance to the audit workflow:
+Scores are organized into two categories: **discovery** and **auditing**.
+
+### Discovery tasks
+
+Discovery tasks use the grep difficulty scale and are weighted by importance:
 
 | Task | Weight | Rationale |
 |------|--------|-----------|
 | Find trust boundaries | 6 | The most important audit target — where human judgment attests safety |
 | Find unsafe declarations | 3 | The unsafe code that trust boundaries depend on |
-| Disambiguate outer vs. interior unsafe | 1 | Quality-of-life for auditors; lowest weight because Rust and Swift explicitly opted out of this distinction |
 
-Total possible: (2 × 6) + (2 × 3) + (2 × 1) = **20**
+### Auditing clarity
+
+Auditing clarity measures whether the design supports the review workflow once code is found. Each sub-point is binary (0 or 1):
+
+| Sub-point | Weight | Rationale |
+|-----------|--------|-----------|
+| Outer/inner disambiguation | 1 | Syntactically distinct forms for caller-unsafe vs. interior-unsafe |
+| Outer unsafe is caller contract | 1 | `unsafe` on a signature means callers must be in an unsafe context — not just a scope enabler |
+| Inner unsafe is implementation-only | 1 | Interior `unsafe` blocks are hidden from callers — the trust boundary absorbs the obligation |
 
 ### Scoring detail
+
+**Discovery** (max 18):
 
 | Task | Weight | D | Rust | Swift | C# (current) | C# (proposed) |
 |------|--------|---|------|-------|---------------|----------------|
 | Find trust boundaries | 6 | 2 — clean grep `@trusted` | 0.5 — script | 0.5 — script | 0.5 — script | 2 — clean grep `trusted` |
 | Find unsafe declarations | 3 | 0 — implicit `@system` | 2 — clean grep `unsafe fn` | 1 — `@unsafe` needs `-A 1` | 1.5 — regex to separate from blocks | 1.5 — regex to separate from blocks |
-| Disambiguate outer vs interior | 1 | 2 — distinct keywords | 1.5 — `unsafe fn` is clean, `unsafe {` has line-break edge cases | 1.5 — `@unsafe` vs `unsafe expr` via regex | 0 — same token, same position | 2 — distinct keywords |
-| **Weighted total** | | **14** | **10.5** | **7.5** | **7.5** | **18.5** |
+| **Discovery subtotal** | | **12** | **9** | **6** | **7.5** | **16.5** |
+
+**Auditing clarity** (max 3):
+
+| Sub-point | D | Rust | Swift | C# (current) | C# (proposed) |
+|-----------|---|------|-------|---------------|----------------|
+| Outer/inner disambiguation | 1 (`@trusted` vs `@system`) | 1 (`unsafe fn` vs `unsafe {}`) | 1 (`@unsafe` vs `unsafe expr`) | 0 (same token) | 0 (not yet decided) |
+| Outer unsafe is caller contract | 0 (implicit `@system`) | 1 (`unsafe fn` requires callers to use `unsafe`) | 1 (`@unsafe` requires callers to use `unsafe`) | 0 (`unsafe` just enables a scope) | 0 (not yet decided) |
+| Inner unsafe is implementation-only | 1 (`@trusted` hides interior) | 1 (`unsafe {}` is interior-only) | 1 (`unsafe expr` is interior-only) | 0 (no distinction) | 0 (not yet decided) |
+| **Auditing subtotal** | **2** | **3** | **3** | **0** | **0*** |
+
+*C# (proposed) has not committed to these design decisions. With all three: +3.
+
+### Combined results
+
+Total possible: 18 (discovery) + 3 (auditing) = **21**
+
+| Language | Discovery | Auditing | Total | % | Grade |
+|----------|-----------|----------|-------|---|-------|
+| C# (proposed)* | 16.5 | 0 | 16.5 | 78.6% | **B+** |
+| D | 12 | 2 | 14 | 66.7% | **C+** |
+| Rust | 9 | 3 | 12 | 57.1% | **C** |
+| Swift | 6 | 3 | 9 | 42.9% | **D+** |
+| C# (current) | 7.5 | 0 | 7.5 | 35.7% | **D** |
+
+*With auditing decisions made, C# (proposed) would score 19.5/21 = 92.9% = **A**.
 
 ### Grade boundaries
 
 | Grade | Score range | Percentage |
 |-------|-----------|------------|
-| A | 18–20 | 90–100% |
-| B | 14–17.9 | 70–89% |
-| C | 10–13.9 | 50–69% |
-| D | 7–9.9 | 35–49% |
-| F | < 7 | < 35% |
-
-### Results
-
-| Language | Score | % | Grade |
-|----------|-------|---|-------|
-| C# (proposed) | 18.5 | 92.5% | **A** |
-| D | 14 | 70% | **B** |
-| Rust | 10.5 | 52.5% | **C** |
-| Swift | 7.5 | 37.5% | **D** |
-| C# (current) | 7.5 | 37.5% | **D** |
+| A | 18.9–21 | 90–100% |
+| B | 14.7–18.8 | 70–89% |
+| C | 10.5–14.6 | 50–69% |
+| D | 7.4–10.4 | 35–49% |
+| F | < 7.4 | < 35% |
