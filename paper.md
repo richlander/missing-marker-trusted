@@ -134,6 +134,14 @@ For JSON schemas, I use [`jq` as the arbiter of sound schema design](https://git
 
 The question: how easily can we find the code that needs review — trust boundaries and unsafe implementations — across each language?
 
+### Why grep?
+
+One might ask why grep is the right proxy rather than an LSP or compiler query. The answer is that code review — the primary context where safety-critical code is evaluated — operates at the grep level, not the LSP level. When reviewing a pull request in GitHub, GitLab, or any diff view, the reviewer sees source text. There is no LSP connected to the diff view. There is no way to "go to definition" or "find all references" from a PR comment. The reviewer's tools are their eyes and the browser's Ctrl+F.
+
+Source code should stand on its own for safety review. An LSP enhances productivity during development, but the safety story for a language cannot depend on a live compiler being on-hand at the moment of review. If a trust boundary is only identifiable through an LSP query, it is invisible in the context where it most needs to be seen.
+
+This is the same argument behind using `jq` as a schema design proxy. If you need a specialized tool to understand whether a schema is well-designed, the schema has failed at self-description. If you need an LSP to understand whether a method is a trust boundary, the language has failed at self-description.
+
 The analysis below uses [ripgrep](https://github.com/BurntSushi/ripgrep) and a set of awk-based scripts for the more complex queries. The scripts are triage tools with known limitations (string literals, macros, block comments can cause false positives). They are not authoritative audit tools but are reasonable approximations. All scripts are in the [`scripts/`](scripts/) directory.
 
 Source repos used:
@@ -385,6 +393,38 @@ We score each language on two dimensions — **discovery** (can you find the cod
 | C# (current) | **D** | Unsafe declarations are discoverable but ambiguous. Trust boundaries require a script. No outer/inner disambiguation, no caller contract, no implementation-only scoping. |
 
 *C# (proposed) scores reflect only the `trusted` keyword addition. Two further design decisions — making `unsafe` on a method a caller contract and ensuring interior `unsafe` blocks are implementation-only — would raise the grade to **A**. Both Rust and Swift have already made these decisions.
+
+## Trust Boundary Marking: Language Design History
+
+The grep results show that no language besides D explicitly marks trust boundary functions. This is not for lack of discussion — the Rust and Swift communities have engaged with the problem and made deliberate choices. Understanding that history is important for C#'s design.
+
+### Rust
+
+Rust's design has evolved through several RFCs, each addressing part of the trust boundary question without fully resolving it.
+
+[**RFC 2585 — Unsafe Block in Unsafe Fn**](https://rust-lang.github.io/rfcs/2585-unsafe-block-in-unsafe-fn.html) (accepted) separated "this function is unsafe to call" from "this function body does unsafe things" via the `unsafe_op_in_unsafe_fn` lint. This was the closest approach to the trust boundary question — it acknowledged that `unsafe fn` was doing double duty — but it addressed the problem from inside `unsafe fn` rather than marking the safe-wrapper-around-unsafe pattern.
+
+[**RFC 3484 — Unsafe Extern Blocks**](https://rust-lang.github.io/rfcs/3484-unsafe-extern-blocks.html) (accepted) introduced `safe` as a contextual keyword inside `extern` blocks — marking foreign functions as safe to call. During the [discussion](https://github.com/rust-lang/rfcs/pull/3484), a reviewer asked why not use `trusted` rather than `safe`. The response was that Rust already has established semantics for "safe" and introducing "trusted" would need a larger plan that "does not yet exist in any concrete form." The `safe` keyword in extern blocks is the exact pattern Andy Gocke's [C# PR](https://github.com/dotnet/csharplang/pull/10058) proposes for extern methods.
+
+[**RFC 3768 — Safe Blocks**](https://github.com/rust-lang/rfcs/pull/3768) (closed) proposed `safe {}` blocks inside `unsafe` contexts — the inverse direction. It was closed because "every single motivating example can be solved better by reducing the overly large scope of the unsafe block."
+
+The [Unsafe Code Annotations](https://internals.rust-lang.org/t/unsafe-code-annotations/9239) discussion on Rust Internals proposed structured metadata (`reason`, `review`, `author`, `hash`) on `unsafe` blocks — a documentation-level approach rather than a language-level one. The [Pre-RFC: Rust Safety Standard](https://internals.rust-lang.org/t/pre-rfc-rust-safety-standard/23963) similarly recommends `// SAFETY:` comments for documenting why unsafe code is sound.
+
+The pattern is consistent: Rust has addressed pieces of the trust boundary problem through lints (RFC 2585), contextual keywords in narrow contexts (RFC 3484), and documentation conventions (`// SAFETY:` comments). But it has not introduced a general-purpose marker for "this safe function wraps unsafe code and attests to its safety." The `// SAFETY:` comment convention is the closest equivalent to D's `@trusted` — it serves the same purpose but is invisible to grep, the compiler, and any automated tooling.
+
+### Swift
+
+Swift's [SE-0458 — Strict Memory Safety](https://github.com/swiftlang/swift-evolution/blob/main/proposals/0458-strict-memory-safety.md) introduced `@unsafe` as a declaration attribute and `unsafe` as an expression prefix. This creates a clear story for marking unsafe code and for scoping unsafe operations to single expressions.
+
+However, SE-0458 does not introduce a marker for trust boundary functions — safe functions that use `unsafe` expressions internally. The [Swift memory safety vision document](https://github.com/swiftlang/swift-evolution/blob/main/visions/memory-safety.md) describes the goal but the design relies on the absence of `@unsafe` to indicate safety, with no explicit attestation.
+
+### D
+
+D is the outlier. `@trusted` has been a language keyword since D's safety system was introduced. It is not an annotation or a lint or a comment convention — it is a first-class part of the type system's safety model. The [D specification](https://dlang.org/spec/memory-safe-d.html) defines the three-layer system (`@safe`, `@trusted`, `@system`) as foundational.
+
+### Summary
+
+The trust boundary gap is a known design space. Rust has engaged with it repeatedly and chosen documentation conventions. Swift has opted for absence-means-safe. D solved it at the language level from the start. C# has the opportunity to learn from all three and adopt a language-level solution — `trusted` — informed by the experience of each community.
 
 ## Lossless Attestations
 
