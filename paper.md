@@ -553,6 +553,59 @@ While this paper focuses on grep as the baseline, a low-inference design has a c
 
 The key insight is that grep and LSP are complementary, not competing. Grep is the entry point — fast, universal, available in every environment. The LSP is the follow-up — rich, structured, environment-dependent. A design that makes grep effective makes the entire toolchain more effective. A design that requires an LSP for the entry point loses the fast path entirely.
 
+### The canonical audit workflow
+
+The complete safety audit has two steps: (1) discover and inspect trust boundaries, (2) discover and inspect the unsafe code they depend on. No single language besides D handles step 1, and D can't do step 2. The workflow below uses real code from real repos to demonstrate both steps, with D providing step 1 and Rust providing step 2.
+
+**Step 1: Discover trust boundaries** (D, [dlang/phobos](https://github.com/dlang/phobos))
+
+```bash
+$ rg "@trusted" --type d std/array.d
+```
+
+```text
+997:auto uninitializedArray(T, I...)(I sizes) nothrow @trusted
+1041:auto minimallyInitializedArray(T, I...)(I sizes) nothrow @trusted
+1261:CommonType!(T[], U[]) overlap(T, U)(T[] a, U[] b) @trusted
+1549:        @trusted static void moveToRight(T[] arr, size_t gap)
+1863:@trusted
+3596:    this(A arr) @trusted
+3665:    @property inout(T)[] opSlice() inout @trusted
+3920:        void clear() @trusted pure nothrow
+...
+```
+
+One command. The auditor immediately sees `uninitializedArray` — a function that returns an array with uninitialized memory and attests that it's safe to call. The function signature, file, and line number are all present. The auditor can pick this method, read its body, and verify the attestation. No script. No LSP. No inference.
+
+**Step 2: Inspect unsafe blocks** (Rust, [rust-lang/rust](https://github.com/rust-lang/rust) `library/`)
+
+```bash
+$ rg "unsafe fn" --type rust library/alloc/src/alloc.rs -A 20 | head -25
+```
+
+```text
+pub unsafe fn exchange_malloc(size: usize, align: usize) -> *mut u8 {
+    let layout = unsafe { Layout::from_size_align_unchecked(size, align) };
+    match Global.allocate(layout) {
+        Ok(ptr) => ptr.as_mut_ptr(),
+        Err(_) => handle_alloc_error(layout),
+    }
+}
+```
+
+One command. The auditor sees the full function: its unsafe contract (`unsafe fn` — callers must ensure valid size and alignment), its interior unsafe operation (`Layout::from_size_align_unchecked`), and the surrounding logic. An agent can review this in a single pass and ask for more context only if needed.
+
+**The gap:** D gives you step 1 but not step 2 — `@system` code is implicit, so the auditor can't grep for the unsafe functions that `uninitializedArray` depends on. Rust gives you step 2 but not step 1 — there's no way to grep for which safe functions wrap those unsafe operations. Each language provides half the workflow.
+
+**C# (optimal)** would provide both steps in a single codebase:
+
+```bash
+$ rg "trusted" --type cs                    # Step 1: find trust boundaries
+$ rg "unsafe" --type cs -A 20               # Step 2: inspect unsafe code
+```
+
+The first command finds every trust boundary. The second finds every unsafe operation with body context. Together they give the auditor the complete safety-critical picture: who attested what, and what unsafe operations they're attesting to. No other language in this comparison achieves both.
+
 ## Developing the C# Proposal
 
 A [follow-up PR](https://github.com/dotnet/csharplang/pull/10058) proposes going back to `unsafe`/`safe` keywords, motivated by practical experience annotating dotnet/runtime: 97% of methods with pointers should be `RequiresUnsafe`, making the attribute approach high-churn for little benefit. The PR also introduces `safe` for extern methods that wrap safe native code (e.g., a P/Invoke into a safe Rust function). That PR's goals align with this paper:
