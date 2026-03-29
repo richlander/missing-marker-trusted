@@ -1,17 +1,18 @@
 # Trust Boundary Discoverability in Memory-Safe Languages
 
-I've been reading the design notes from C#, D, Rust, and Swift design communities. Most of the focus is on how blocks of code are decorated to highlight unsafety. The unsafe spotlight is important but doesn't deliver confidence where you need it most. The aspect that truly matters is the transition from unsafe to safe code. That's a word for that: "trust boundary". This transition point should be the most decorated, attracting the most scrutiny. Most of the designs accept the lack of an unsafe marker as an indication that unsafe warnings/errors can be suppressed. We don't know for sure if the marker was deleted by accident or as a meaningful removal. These designs are storing a ternary value with a single bit. It's not clear why Rust and Swift chose that approach, while we have the opportunity to resolve this critical design point with C#.
+I've been reading the design notes from C#, D, Rust, and Swift design communities. Most of the focus is on how blocks of code are decorated to highlight unsafety. The unsafe spotlight is important but doesn't deliver confidence where you need it most. The aspect that truly matters is the transition from unsafe to safe code. That's a word for that: "trust boundary". This transition point should be the most lit up, attracting the most scrutiny. Most of the designs accept the lack of an unsafe marker as an indication that unsafe warnings/errors can be suppressed. We cannot know if the marker was deleted by accident or as a meaningful removal. These designs are storing a ternary value with a single bit. It's not clear why Rust and Swift chose that approach, while we have the opportunity to resolve this critical design point with C#.
 
 > Large Language Models (LLMs) add a new dimension to memory safety. Safe code is well-suited to generative AI. It is easier to understand, review, and modify with confidence. We recommend that developers configure their AI systems and build tools to permit only safe code. In the new AI paradigm, the compiler and analyzers become the final authority on safety.
 
 Source: https://github.com/dotnet/designs/blob/main/accepted/2025/memory-safety/memory-safety.md
 
-That's a compelling vision. Our ambition is that agents generate most C# code going forward and that they can help with migration to our new memory safety model. The vision implies a lossless design with clear attestation at the trust boundary. Removing `unsafe` anywhere should result in compiler errors. Lossy designs get us into Jia Tan territory.
+That's a compelling vision. Our ambition is that agents generate most C# code going forward and that they can help with migration to our new memory safety model over the next several years. The vision implies a lossless design with clear attestation at the trust boundary. Removing `unsafe` (establishing the afforementioned absence) should result in compiler errors. Lossy designs get us into Jia Tan ([xz fame](https://en.wikipedia.org/wiki/XZ_Utils_backdoor)) territory.
 
 My overall take:
 
 - The value of a memory safety system is enforcement and auditing, automatic or otherwise.
 - The mechanistic basis is an inherently collaborative auditing system between deterministic (compiler) and semantic (human and/or agent) actors.
+- The sematic actors primilary act WITHOUT compiler assistance (like via an LSP).
 - The success of the system depends on the degree to which it relies on inference in the semantic domain. High inference means low clarity means low confidence.
 - We can test the cost of inference using grep as a proxy.
 - Agent-assisted code migration and maintenance is a core part of our vision. A low-inference design model is a critical path to enabling that.
@@ -50,11 +51,13 @@ That's a pyramid. Reasoning from the bottom:
 - `@trusted` functions can call `@system` or any other functions and present a caller-safe surface.
 - `@safe` functions operate within the safe subset and may only call `@safe` and `@trusted` functions.
 
-All functions must be sound. The `@system` code needs to be correct and safe to use after obligations are discharged by a `@trusted` caller. Sound `@system` and `@trusted` code is the responsibility of the developer, not the compiler. That's true of Rust too.
+This approach can be thought of as an information-preserving model or a high-productivity/high-confidence software auditing system.
+
+All functions must be sound at all three layers. The `@system` code needs to be correct and safe to use after obligations are discharged by a `@trusted` caller. Sound `@system` and `@trusted` code is the responsibility of the developer, not the compiler. That's true of Rust too.
 
 The opt-in-to-safe approach is sensible for a systems language.
 
-#### Auditing characteristics
+#### Auditing workflow
 
 Experienced D developers reviewing a new codebase for safety concerns presumably search for `@trusted` functions as the starting point. Safe code doesn't need to be reviewed, while `@system` code can be best understood by starting from the safe surface area and the assumptions that it makes. `@trusted` is the most fundamental "safe surface area".
 
