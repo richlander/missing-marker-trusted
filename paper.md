@@ -327,6 +327,20 @@ Swift chose `@unsafe` as a declaration attribute and `unsafe` as an expression p
 
 Swift's review guidance focuses on tooling rather than manual grep. The [memory safety vision](https://github.com/swiftlang/swift-evolution/blob/main/visions/memory-safety.md) states: "An auditing tool should be able to identify and report Swift modules that were compiled without strict memory safety as well as all of the places where the opt-out mechanism...is used." SE-0458 describes the feature as making "it easy to audit unsafe calls." The emphasis is on compiler-assisted audit rather than text-based discovery — a reasonable approach for a source-distributed language, but one that leaves the trust boundary (safe functions wrapping `unsafe` expressions) dependent on tooling rather than self-describing in the source.
 
+#### Case study: swift-collections
+
+[apple/swift-collections](https://github.com/apple/swift-collections) is one of the first libraries to adopt SE-0458's strict memory safety annotations. It demonstrates both the strengths and gaps of Swift's current model:
+
+```text
+@unsafe declarations (grep-discoverable):        24 hits across 7 files
+unsafe expressions (grep-discoverable):          158 hits across 38 files
+Trust boundary functions (script required):      118 functions found
+```
+
+The unsafe side is well-covered: `rg "@unsafe"` finds the 24 declarations, and `rg "[[:space:](=]unsafe [[:alpha:]]"` finds the 158 unsafe expressions. An auditor can inventory every unsafe operation in the library with two grep commands.
+
+But the 118 trust boundary functions — safe functions that contain `unsafe` expressions — are invisible to grep. They require [`scripts/find-swift-trust-boundaries.sh`](scripts/find-swift-trust-boundaries.sh), a 110-line awk script, to approximate. These are the functions where a developer attested that the interior unsafe operations are correctly bounded. They are the most important audit targets, and they are the hardest to find.
+
 ### C# (Current State)
 
 Source: [dotnet/runtime](https://github.com/dotnet/runtime) (`src/libraries/`)
