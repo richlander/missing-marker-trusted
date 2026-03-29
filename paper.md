@@ -424,6 +424,16 @@ High-inference models force agents to build ASTs or rely on LSPs to answer the s
 
 The grep test is not just a theoretical metric. It's a practical measure of how accessible a safety model is to the tools that will increasingly be responsible for maintaining it.
 
+### Beyond grep: LSP integration
+
+While this paper focuses on grep as the baseline, a low-inference design has a compounding benefit when paired with an LSP. Grep identifies the starting points — `trusted` and `unsafe` methods — and an LSP can then build the full picture:
+
+- **Call graphs from trust boundaries** — starting from a `trusted` method, an LSP can trace the call graph downward into `unsafe` code and upward into safe callers. The result is a complete view of the safety-critical path: which unsafe operations are being attested, and who depends on that attestation. Each node carries a function signature and file+line location.
+- **Mermaid diagrams** — the same call graph data can generate visual diagrams showing the class structure around trust boundaries. A mermaid diagram rooted at a `trusted` method shows the type hierarchy, the unsafe methods it calls, and the safe public surface it presents. This is useful for code review, onboarding, and incident investigation.
+- **Targeted review scoping** — an agent or reviewer can start with `grep trusted`, pick a method, and ask the LSP for its call graph. This is a fundamentally different workflow than asking an LSP to find all safety-relevant code from scratch. Grep provides the index; the LSP provides the depth.
+
+The key insight is that grep and LSP are complementary, not competing. Grep is the entry point — fast, universal, available in every environment. The LSP is the follow-up — rich, structured, environment-dependent. A design that makes grep effective makes the entire toolchain more effective. A design that requires an LSP for the entry point loses the fast path entirely.
+
 ## Developing the C# Proposal
 
 A [follow-up PR](https://github.com/dotnet/csharplang/pull/10058) proposes going back to `unsafe`/`safe` keywords, motivated by practical experience annotating dotnet/runtime: 97% of methods with pointers should be `RequiresUnsafe`, making the attribute approach high-churn for little benefit. The PR also introduces `safe` for extern methods that wrap safe native code (e.g., a P/Invoke into a safe Rust function). That PR's goals align with this paper:
