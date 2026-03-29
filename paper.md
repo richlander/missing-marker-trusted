@@ -405,7 +405,21 @@ Contrast this with "absence means safe" designs, where a method's safety role is
 
 This distinction matters for incident response. When a safety-critical bug is found, the first question is "who reviewed this boundary and what assumptions did they make?" In a lossless system, `git blame` answers that question directly. In an inference-based system, the answer is "we don't know — there's nothing to find."
 
-D's `@trusted` and the proposed C# `trusted` keyword both produce lossless attestations. Rust's and Swift's trust boundaries do not.
+### Defense in depth: the xz backdoor lesson
+
+The introduction references "Jia Xue Tang territory" — the [xz/liblzma backdoor](https://en.wikipedia.org/wiki/XZ_Utils_backdoor) discovered in 2024, where a contributor spent years building trust and then introduced malicious code through diffs that didn't attract scrutiny. There are three tiers of defense against this kind of change:
+
+1. **Compiler errors** — the change cannot land without being addressed. The author must explicitly modify the safety annotation. This is the gold standard.
+2. **Tool warnings** (valgrind, analyzers, etc.) — the change can land, but produces signals after the fact. Helpful, but the attacker can volunteer to "fix" the warnings. This is exactly what happened with xz — valgrind produced warnings relatively quickly, but Jia Xue Tang handled the response and produced a plausible backstory.
+3. **Diff review** — the change is visible in version control but has no structural salience. Requires a reviewer to notice and understand the significance. This is the weakest defense.
+
+The xz backdoor passed tier 3 (diffs existed, reviewers missed them), eventually triggered tier 2 (valgrind flagged issues, the attacker handled the response), and was never subjected to tier 1 (no compiler enforcement existed for the affected code path).
+
+A `trusted` design operates at tier 1. Removing `trusted` from a method with interior `unsafe` blocks is a compiler error. Removing the `unsafe` blocks from a `trusted` method is a compiler warning (unnecessary attestation). The attacker can't quietly absorb these the way the xz attacker absorbed valgrind output — they would have to explicitly change the safety annotations, producing a structurally remarkable diff that names the safety model directly.
+
+Lossy designs — where a trust boundary has no marker — operate at tier 3 at best. The diff that removes an `unsafe` block from an unmarked method looks like routine cleanup. There is no compiler error. There is no annotation change in the signature. The safety attestation simply vanishes from the code without any toolchain signal that something important happened.
+
+D's `@trusted` and the proposed C# `trusted` keyword both produce lossless attestations at tier 1. Rust's and Swift's trust boundaries do not.
 
 ## Agent-Assisted Maintenance
 
