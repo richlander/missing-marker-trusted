@@ -59,7 +59,7 @@ The opt-in-to-safe approach is sensible for a systems language.
 
 #### Auditing workflow
 
-Experienced D developers reviewing a new codebase for safety concerns presumably search for `@trusted` functions as the starting point. Safe code doesn't need to be reviewed, while `@system` code can be best understood by starting from the safe surface area and the assumptions that it makes. `@trusted` is the most fundamental "safe surface area".
+The D community's guidance confirms that `@trusted` is where the review budget goes. The official D blog [states](https://dlang.org/blog/2016/09/28/how-to-write-trusted-code-in-d/): "`@trusted` code is never mechanically checked for safety, so every line must be reviewed for correctness. For this reason, it's always advisable to keep the code that is `@trusted` as small as possible." Ate Eskola [writes](https://dlang.org/blog/2023/01/05/memory-safety-in-a-systems-programming-language-part-3/): "`@trusted` functions...need to be just as carefully reviewed, if not more so, as `@system` functions" and "it's many times more important than usual to keep `@system` and `@trusted` functions small and simple to review." The principle is clear: `@safe` code doesn't need manual review — the compiler verifies it. The audit focus narrows to `@trusted` and `@system`.
 
 D developers can rely on grep to find `@trusted` functions. It is powerful that grep _always_ finds the functions that need to be audited first. There is no need to look at the method implementation to determine the color of the method, or to rely on an AST or LSP.
 
