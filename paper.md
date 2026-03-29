@@ -85,6 +85,8 @@ Trust Boundary Functions (TBF) are unsafe in the same way as any other unsafe fu
 
 My initial thinking -- in C# parlance -- was to call TBFs `safe` since that's the opposite of `unsafe`. However, these functions are in way the opposite of unsafe. They _are_ unsafe plus a special bit. Another view is that `unsafe` can make clear guarantees about `unsafe` code. The guarantee is: "I've got no earthly idea what is going on!". And so the marker fits. However the same guarantee applies equally to TBFs. The concept of `safe` should only be applied when the compiler can guaranteee that: "I know exactly what is going on and it aligns 100% with my model of safety." That's not the case for TBFs.
 
+"trusted" is a good term and aligns with "safe critical". What we really want is "attested-safe". That's too much. I also think it's a virtue to remove "safe" from the marking entirely. I like "trusted" as the term, matching the D language.
+
 ## Applying the Model to C#
 
 C# is the opposite of D: unsafe code is marked and safe isn't. The difference doesn't matter for effective memory safety. That's an audience and form factor bias. It's the decorative approach for the middle layer that matters most.
