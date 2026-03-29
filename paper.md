@@ -1,8 +1,14 @@
 # Trust Boundary Discoverability in Memory-Safe Languages
 
-I've been reading the design notes from C#, D, Rust, and Swift design communities. Most of the focus is on how blocks of code are decorated to highlight unsafety. The unsafe spotlight is important but doesn't deliver confidence where you need it most. The aspect that truly matters is the transition from unsafe to safe code. This transition point should be the most decorated, attracting the most scrutiny. Most of the designs accept the lack of an unsafe marker as an indication that unsafe warnings/errors can be suppressed. That's not a compelling approach. It's a priority inversion that leads to a loss of critical information.
+I've been reading the design notes from C#, D, Rust, and Swift design communities. Most of the focus is on how blocks of code are decorated to highlight unsafety. The unsafe spotlight is important but doesn't deliver confidence where you need it most. The aspect that truly matters is the transition from unsafe to safe code. That's a word for that: "trust boundary". This transition point should be the most decorated, attracting the most scrutiny. Most of the designs accept the lack of an unsafe marker as an indication that unsafe warnings/errors can be suppressed. We don't know for sure if the marker was deleted by accident or as a meaningful removal. These designs are storing a ternary value with a single bit.
 
-My take:
+> Large Language Models (LLMs) add a new dimension to memory safety. Safe code is well-suited to generative AI. It is easier to understand, review, and modify with confidence. We recommend that developers configure their AI systems and build tools to permit only safe code. In the new AI paradigm, the compiler and analyzers become the final authority on safety.
+
+Source: https://github.com/dotnet/designs/blob/main/accepted/2025/memory-safety/memory-safety.md
+
+That's a compelling vision. Our ambition is that agents generate most C# code going forward and that they can help with migration to our new memory safety model. The vision implies a lossless design with clear attestation at the trust boundary. Removing `unsafe` anywhere should result in compiler errors.
+
+My overall take:
 
 - The value of a memory safety system is enforcement and auditing, automatic or otherwise.
 - The mechanistic basis is an inherently collaborative auditing system between deterministic (compiler) and semantic (human and/or agent) actors.
@@ -51,13 +57,13 @@ D developers can rely on grep to find `@trusted` functions. It is powerful that 
 
 ### The Silverlight Security Transparency Parallel
 
-I was thinking about how we could elevate these terms to more generic names and came up with:
+I was thinking about how we could elevate these terms to more generic names.
 
 - Transparent
 - Safe Critical
 - Security Critical
 
-This is the same as our [security transparency model from Silverlight](https://learn.microsoft.com/previous-versions/dotnet/framework/code-access-security/security-transparent-code).
+These are from our [security transparency model from Silverlight](https://learn.microsoft.com/previous-versions/dotnet/framework/code-access-security/security-transparent-code). I realized that D recreated the same thing, frankly with better names.
 
 That model had three layers with clear markings throughout, making auditing straightforward. "Transparent" code could only call other transparent or "safe critical" code. "Safe critical" code was the trust boundary — it could call "security critical" code and present a transparent-safe surface. "Security critical" code had full access.
 
@@ -72,6 +78,12 @@ The mapping is direct:
 The Silverlight model was abandoned when Silverlight was abandoned — not because the model was flawed. The design was sound. We already solved this problem once. The lesson is that a three-layer system with explicit trust boundaries is a recurring, validated pattern. We should reclaim it.
 
 You can imagine asking an agent to review all "safe critical" methods. It is trivial for the agent to find them. This is a definitional characteristic of a well-designed safety model.
+
+## Trust Boundary Functions
+
+Trust Boundary Functions (TBF) are unsafe in the same way as any other unsafe function. They handle unsafe currency and must do so soundly. They only differ in that they have the special character that they are considered safe to call by developers who (in the general case) have no basis or intent of applying scrutiny. They take on a double duty.
+
+My initial thinking -- in C# parlance -- was to call TBFs `safe` since that's the opposite of `unsafe`. However, these functions are in way the opposite of unsafe. They _are_ unsafe plus a special bit. Another view is that `unsafe` can make clear guarantees about `unsafe` code. The guarantee is: "I've got no earthly idea what is going on!". And so the marker fits. However the same guarantee applies equally to TBFs. The concept of `safe` should only be applied when the compiler can guaranteee that: "I know exactly what is going on and it aligns 100% with my model of safety." That's not the case for TBFs.
 
 ## Applying the Model to C#
 
