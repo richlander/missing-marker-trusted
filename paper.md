@@ -426,6 +426,18 @@ D is the outlier. `@trusted` has been a language keyword since D's safety system
 
 The trust boundary gap is a known design space. Rust has engaged with it repeatedly and chosen documentation conventions. Swift has opted for absence-means-safe. D solved it at the language level from the start. C# has the opportunity to learn from all three and adopt a language-level solution — `trusted` — informed by the experience of each community.
 
+### The `unsafe` keyword lineage
+
+The `unsafe` keyword — at least for modern mainline languages — starts with C#. C# 1.0 (2001) introduced `unsafe` as a compiler-enforced keyword with a distinct context, the first mainstream language to give the safe/unsafe boundary a syntactic marker. Before that, the C/C++ world had no such distinction — everything was implicitly unsafe.
+
+Rust (2015) took the C# innovation and extended it: `unsafe fn` as a caller contract, `unsafe {}` as scoped interior unsafe, the `// SAFETY:` documentation convention, and eventually `unsafe_op_in_unsafe_fn` to separate the two roles. Rust made `unsafe` do more work.
+
+Swift (2024–2025, SE-0458) went further with `@unsafe` as a declaration attribute and `unsafe` as an expression prefix, scoping unsafety to individual expressions rather than blocks.
+
+But both Rust and Swift evolved the _unsafe_ side of the model without addressing the _attestation_ side. They made it easier to find and scope unsafe code but left the trust boundary — the point where someone claims "I've reviewed this and it's safe to call" — unmarked. D is the only language that addressed attestation with `@trusted`, but D built its own model independently rather than evolving from C#'s keyword.
+
+C# introduced `unsafe`. Rust and Swift evolved it to stronger utility. C# has the opportunity to evolve it again — pairing `unsafe` with `trusted` to close the trust boundary gap that every language in this lineage has left open. The language that started the `unsafe` keyword can be the first mainline language to complete the model.
+
 ## Lossless Attestations
 
 The meaning of "lossless" is that safety attestations — the explicit claims that a trust boundary is correctly implemented — are recorded in code and source control. There is never a compiler-accepted state where information is lost.
@@ -579,7 +591,7 @@ The characteristics we want, in order of importance:
 
 The inference cost of a safety design is a primary metric for its practical value. Designs that require scripts, ASTs, or LSPs to answer the question "where are the trust boundaries?" impose a tax on every auditor, every agent, and every review cycle.
 
-C# has the opportunity to lead on this metric. The `trusted` keyword is a small addition with an outsized effect: it makes trust boundaries directly discoverable, produces lossless attestations under `git blame`, and enables the agent-assisted workflows that will be central to memory safety adoption at scale.
+C# has the opportunity to lead on this metric. The `unsafe` keyword — for modern mainline languages — starts with C#. Rust and Swift evolved it to stronger utility. C# can evolve it again by pairing `unsafe` with `trusted`, closing the trust boundary gap that every language in this lineage has left open. The `trusted` keyword is a small addition with an outsized effect: it makes trust boundaries directly discoverable, produces lossless attestations under `git blame`, and enables the agent-assisted workflows that will be central to memory safety adoption at scale. The language that introduced `unsafe` can be the first to complete the model.
 
 ## Appendix: Scoring Methodology
 
