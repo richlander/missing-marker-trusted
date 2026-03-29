@@ -128,9 +128,11 @@ This approach is lossless and grep-friendly. It preserves the three-layer model.
 
 ## Measuring Discoverability: The Grep Test
 
+Memory safety across all languages inherently relies on human and agent auditing. The compiler verifies safe code by construction — that's the value proposition. But `trusted` and `unsafe` code cannot be verified by the compiler. They require semantic review: a human or agent must confirm that the unsafe operations are correctly bounded and that the trust boundary's safety attestation is valid. The audit value of methods is therefore inherently asymmetric. Safe code doesn't need review. Trust boundary functions need the most review — they are where human judgment meets compiler enforcement. Unsafe functions need review too, but the trust boundary is where the claim is made.
+
 For JSON schemas, I use [`jq` as the arbiter of sound schema design](https://github.com/dotnet/designs/blob/main/accepted/2025/cve-schema/cve_schema.md#design-philosophy). If the `jq` queries are awkward, the schema is too, by implication. We can use grep as our proxy for sound language design as it relates to where human or agent auditing is required.
 
-The question: how easily can we find trust boundary code — `@trusted` in D parlance — across each language?
+The question: how easily can we find the code that needs review — trust boundaries and unsafe implementations — across each language?
 
 The analysis below uses [ripgrep](https://github.com/BurntSushi/ripgrep) and a set of awk-based scripts for the more complex queries. The scripts are triage tools with known limitations (string literals, macros, block comments can cause false positives). They are not authoritative audit tools but are reasonable approximations. All scripts are in the [`scripts/`](scripts/) directory.
 
@@ -215,7 +217,7 @@ library/panic_unwind/src/emcc.rs
 ...
 ```
 
-Directly discoverable. The `unsafe fn` keyword in the signature does the heavy lifting on disambiguation with `unsafe` blocks.
+Directly discoverable. The `unsafe fn` keyword in the signature does the heavy lifting on disambiguation with `unsafe` blocks. An agent can go further with `rg "unsafe fn" --type rust -A 20` to capture the signature and body context in a single pass — typically enough to understand the function's contract and review its safety obligations without opening a file.
 
 **Finding unsafe blocks** — also straightforward:
 
@@ -238,6 +240,8 @@ Directly discoverable.
 #### Design tradeoff acknowledgment
 
 Rust's design deliberately chose fine-grained `unsafe` block scoping within safe functions. This gives auditors a different benefit: you can grep for every `unsafe {}` block and review the actual unsafe operation in isolation. The inference cost is higher for "which function attests safety?" but lower for "which exact line does the dangerous thing?" [RFC 2585](https://rust-lang.github.io/rfcs/2585-unsafe-block-in-unsafe-fn.html) (`unsafe_op_in_unsafe_fn`) was a step toward separating "the function is unsafe to call" from "the function body does unsafe things." The community made a considered tradeoff favoring composability and granularity over trust-boundary discoverability.
+
+Rust's guidance to keep `unsafe` blocks narrow — ideally a few lines — has a real payoff for grep-based auditing. A narrow block means `rg -Un "unsafe\s*\{" -A 3` captures the entire unsafe operation in context. An agent reviewing unsafe code can start with the grep results and ask for more context only when needed. The same applies to Swift's `unsafe expr` prefix, which scopes unsafety to a single expression. Both designs make the unsafe *operations* easy to review even though the trust *boundaries* remain hidden.
 
 ### Swift
 
@@ -368,19 +372,19 @@ These methods are unsafe by inheritance from the containing type — invisible t
 
 C# currently offers the least discoverability among the four languages.
 
-## Summary Scorecard
+## Discoverability Grades
 
-| Criterion | D | Rust | Swift | C# (current) | C# (proposed) |
-|-----------|---|------|-------|---------------|----------------|
-| Trust boundary discoverable via grep | Yes (`@trusted`) | No (needs script) | No (needs script) | No (needs script) | Yes (`trusted`) |
-| Unsafe declarations discoverable via grep | No (implicit `@system`) | Yes (`unsafe fn`) | Partial (`@unsafe` on separate line) | Yes (`unsafe` keyword) | Yes (`unsafe`) |
-| Unsafe blocks discoverable via grep | N/A | Yes (`unsafe {}`) | N/A (`unsafe expr`) | Partial (mixed with methods) | Partial |
-| Signature carries safety info | Yes | Yes | Partial (attribute) | Yes | Yes |
-| Outer vs. interior unsafe disambiguated | Yes (`@trusted` vs `@system`) | Partial (`unsafe fn` vs `unsafe {}`) | Partial (`@unsafe` vs `unsafe expr`) | No | Yes (`trusted` vs `unsafe`) |
-| Requires AST/LSP for trust boundary audit | No | Yes | Yes | Yes | No |
-| Attestation lossless under git blame | Yes | No | No | No | Yes |
+We score each language on three audit tasks — finding trust boundaries, finding unsafe declarations, and disambiguating outer (caller) vs. interior unsafe — weighted by importance to the audit workflow. The grading methodology is detailed in [Appendix: Scoring Methodology](#appendix-scoring-methodology).
 
-Each language has strengths. D leads on trust boundary discoverability. Rust leads on unsafe code and unsafe block discoverability. Swift takes a composable attribute-based approach. C# has room for improvement across the board — and a clear path to first place on the metrics that matter most for auditing.
+| Language | Grade | Summary |
+|----------|-------|---------|
+| C# (proposed) | **A** | Both trust boundaries (`trusted`) and unsafe declarations (`unsafe`) are discoverable via clean grep. The only language where the complete audit graph is constructible from grep alone. |
+| D | **B** | Trust boundaries (`@trusted`) are perfectly discoverable. Unsafe code (`@system`) is implicit and invisible to grep — you can find the boundaries but not the code they depend on. |
+| Rust | **C** | Unsafe declarations (`unsafe fn`) are perfectly discoverable. Trust boundaries require an 80-line awk script to approximate. You can find the unsafe code but not the attestations. |
+| Swift | **D** | Unsafe declarations (`@unsafe`) require `-A 1` context. Trust boundaries require a script. Neither side is cleanly discoverable. |
+| C# (current) | **D** | Unsafe declarations are discoverable but ambiguous (mixed with blocks). Trust boundaries require a script. No disambiguation between outer and interior unsafe. |
+
+C# moves from **D** to **A** with the addition of `trusted` — from trailing last to leading on the metrics that matter most for auditing.
 
 ## Lossless Attestations
 
@@ -496,3 +500,58 @@ The characteristics we want, in order of importance:
 The inference cost of a safety design is a primary metric for its practical value. Designs that require scripts, ASTs, or LSPs to answer the question "where are the trust boundaries?" impose a tax on every auditor, every agent, and every review cycle.
 
 C# has the opportunity to lead on this metric. The `trusted` keyword is a small addition with an outsized effect: it makes trust boundaries directly discoverable, produces lossless attestations under `git blame`, and enables the agent-assisted workflows that will be central to memory safety adoption at scale.
+
+## Appendix: Scoring Methodology
+
+### Grep difficulty scale
+
+Each audit task is scored on a 0–2 scale based on the grep difficulty required:
+
+| Method | Score | Rationale |
+|--------|-------|-----------|
+| Clean grep | 2 | One command, exact results, no false positives |
+| Grep with regex | 1.5 | One command, requires pattern knowledge, may have edge cases |
+| Grep with context flag (`-A 1`) | 1 | One command, results require visual pairing across lines |
+| Script (awk/parser) | 0.5 | Approximation with known false positives, not authoritative |
+| Not possible / invisible | 0 | Requires AST/LSP or information doesn't exist in the source |
+
+### Audit tasks and weights
+
+Three tasks are scored, weighted by importance to the audit workflow:
+
+| Task | Weight | Rationale |
+|------|--------|-----------|
+| Find trust boundaries | 6 | The most important audit target — where human judgment attests safety |
+| Find unsafe declarations | 3 | The unsafe code that trust boundaries depend on |
+| Disambiguate outer vs. interior unsafe | 1 | Quality-of-life for auditors; lowest weight because Rust and Swift explicitly opted out of this distinction |
+
+Total possible: (2 × 6) + (2 × 3) + (2 × 1) = **20**
+
+### Scoring detail
+
+| Task | Weight | D | Rust | Swift | C# (current) | C# (proposed) |
+|------|--------|---|------|-------|---------------|----------------|
+| Find trust boundaries | 6 | 2 — clean grep `@trusted` | 0.5 — script | 0.5 — script | 0.5 — script | 2 — clean grep `trusted` |
+| Find unsafe declarations | 3 | 0 — implicit `@system` | 2 — clean grep `unsafe fn` | 1 — `@unsafe` needs `-A 1` | 1.5 — regex to separate from blocks | 1.5 — regex to separate from blocks |
+| Disambiguate outer vs interior | 1 | 2 — distinct keywords | 1.5 — `unsafe fn` is clean, `unsafe {` has line-break edge cases | 1.5 — `@unsafe` vs `unsafe expr` via regex | 0 — same token, same position | 2 — distinct keywords |
+| **Weighted total** | | **14** | **10.5** | **7.5** | **7.5** | **18.5** |
+
+### Grade boundaries
+
+| Grade | Score range | Percentage |
+|-------|-----------|------------|
+| A | 18–20 | 90–100% |
+| B | 14–17.9 | 70–89% |
+| C | 10–13.9 | 50–69% |
+| D | 7–9.9 | 35–49% |
+| F | < 7 | < 35% |
+
+### Results
+
+| Language | Score | % | Grade |
+|----------|-------|---|-------|
+| C# (proposed) | 18.5 | 92.5% | **A** |
+| D | 14 | 70% | **B** |
+| Rust | 10.5 | 52.5% | **C** |
+| Swift | 7.5 | 37.5% | **D** |
+| C# (current) | 7.5 | 37.5% | **D** |
