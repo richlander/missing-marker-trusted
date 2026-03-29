@@ -1,6 +1,6 @@
 # Trust Boundary Discoverability in Memory-Safe Languages
 
-I've been reading the design notes from C#, D, Rust, and Swift design communities. Most of the focus is on how blocks of code are decorated to highlight unsafety. The unsafe spotlight is important but doesn't deliver confidence where you need it most, the transition from unsafe to safe code. That's a word for that: "trust boundary". Our threat-modeling tradition emphasizes focus on that boundary. This transition point should attract the most scrutiny — the boundary and what holds it up is what matters most. On can draw that conclusion that there is a gap between our threat modeling tradition and language design (across much of the industry). We're in the middle of designing C# memory safety v2. It's the moment to close this gap.
+I've been reading the design notes from C#, D, Rust, and Swift design communities. Most of the focus is on how blocks of code are decorated to highlight unsafety. The unsafe spotlight is important but doesn't deliver confidence where you need it most, the transition from unsafe to safe code. That's a word for that: "trust boundary". Our threat-modeling tradition emphasizes focus on that boundary. This transition point should attract the most scrutiny — the boundary and what holds it up is what matters most. One can draw the conclusion that there is a gap between our threat modeling tradition and language design (across much of the industry). We're in the middle of designing C# memory safety v2. It's the moment to close this gap.
 
 Most of the language designs accept the lack of an unsafe marker as an indication that unsafe warnings/errors can be suppressed. We cannot know if the marker was deleted by accident or as a meaningful removal. In effect, these designs are storing a ternary value with a single bit. It's not clear why Rust and Swift chose that approach. Current C# stores this information in zero bits, which is even worse. We have the opportunity to resolve this critical language design point with C#.
 
@@ -10,13 +10,13 @@ Let's look at our vision for memory safety v2:
 
 Source: https://github.com/dotnet/designs/blob/main/accepted/2025/memory-safety/memory-safety.md
 
-That's a compelling vision. Our ambition is that agents generate most C# code going forward and that they can drive migration to our new memory safety model over the next several years. The vision implies a lossless design with clear attestation at the trust boundary. The phase "final authority on safety" is indeed a heavy lift. Removing `unsafe` (establishing the afforementioned absence) should result in compiler errors. Lossy designs get us into scary Jia Tan ([xz fame](https://en.wikipedia.org/wiki/XZ_Utils_backdoor)) territory.
+That's a compelling vision. Our ambition is that agents generate most C# code going forward and that they can drive migration to our new memory safety model over the next several years. The vision implies a lossless design with clear attestation at the trust boundary. The phrase "final authority on safety" is indeed a heavy lift. Removing `unsafe` (establishing the aforementioned absence) should result in compiler errors. Lossy designs get us into scary Jia Tan ([xz fame](https://en.wikipedia.org/wiki/XZ_Utils_backdoor)) territory.
 
 My overall take:
 
 - The value of a memory safety system is enforcement and auditing, automatic or otherwise.
 - The mechanistic basis is an inherently collaborative auditing system between deterministic (compiler) and semantic (human and/or agent) actors.
-- The sematic actors primilary act WITHOUT compiler assistance (like via an LSP).
+- The semantic actors primarily act WITHOUT compiler assistance (like via an LSP).
 - The success of the system depends on the degree to which it relies on inference in the semantic domain. High inference means low clarity means low confidence.
 - We can test the cost of inference using grep as a proxy.
 - Agent-assisted code migration and maintenance is a core part of our vision. A low-inference design model is a critical path to enabling that, with accuracy and cost metrics as equal concerns.
