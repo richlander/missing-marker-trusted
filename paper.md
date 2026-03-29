@@ -329,17 +329,29 @@ Swift's review guidance focuses on tooling rather than manual grep. The [memory 
 
 #### Case study: swift-collections
 
-[apple/swift-collections](https://github.com/apple/swift-collections) is one of the first libraries to adopt SE-0458's strict memory safety annotations. It demonstrates both the strengths and gaps of Swift's current model:
+[apple/swift-collections](https://github.com/apple/swift-collections) is one of the first libraries to adopt SE-0458's strict memory safety annotations. It demonstrates both the strengths and gaps of Swift's current model.
+
+**Grep-based discovery:**
 
 ```text
-@unsafe declarations (grep-discoverable):        24 hits across 7 files
-unsafe expressions (grep-discoverable):          158 hits across 38 files
-Trust boundary functions (script required):      118 functions found
+@unsafe declarations:                24 hits across 7 files
+unsafe expressions:                 158 hits across 38 files
+Trust boundary functions:           118 functions (via 110-line awk script)
 ```
 
 The unsafe side is well-covered: `rg "@unsafe"` finds the 24 declarations, and `rg "[[:space:](=]unsafe [[:alpha:]]"` finds the 158 unsafe expressions. An auditor can inventory every unsafe operation in the library with two grep commands.
 
-But the 118 trust boundary functions — safe functions that contain `unsafe` expressions — are invisible to grep. They require [`scripts/find-swift-trust-boundaries.sh`](scripts/find-swift-trust-boundaries.sh), a 110-line awk script, to approximate. These are the functions where a developer attested that the interior unsafe operations are correctly bounded. They are the most important audit targets, and they are the hardest to find.
+But the 118 trust boundary functions — safe functions that contain `unsafe` expressions — are invisible to grep. They require [`scripts/find-swift-trust-boundaries.sh`](scripts/find-swift-trust-boundaries.sh) to approximate. These are the functions where a developer attested that the interior unsafe operations are correctly bounded. They are the most important audit targets, and they are the hardest to find.
+
+**Compiler-assisted audit** (`-strict-memory-safety`):
+
+```text
+StrictMemorySafety warnings:      12,526 across 319 files
+```
+
+The compiler mode is comprehensive — it finds every expression that uses unsafe constructs but isn't marked with `unsafe`. This is authoritative in a way grep cannot be (no false negatives from templates, type inference, or implicit unsafety). However, the 12,526 warnings identify unsafe *usage sites*, not trust boundaries. The output tells you where unsafe code is used but not which functions attest that the usage is safe. An auditor reviewing these warnings would need to manually determine which enclosing function is the trust boundary — the same inference problem that grep has, just with a more complete starting list.
+
+The compiler audit tool and grep serve the same side of the ledger: inventorying unsafe code. Neither answers the trust boundary question.
 
 ### C# (Current State)
 
