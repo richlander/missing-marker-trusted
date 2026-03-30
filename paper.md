@@ -56,7 +56,9 @@ The paper proposes grep as a proxy for inference cost and compares D, Rust, Swif
 | C# (current) | **35.0%** |
 | C# + `RequiresUnsafe` | **30.0%** |
 
-Rust leads today because its borrow checker and safety model have always been default-on. Adding `trusted` to C# closes most of the gap. The rest of the paper builds the case for these results.
+Rust leads today because its borrow checker and safety model have always been default-on. Adding `trusted` to C# closes most of the gap, per this scoring scheme. The rest of the paper builds the case for these results.
+
+There is a separate project to consider adding ownership to C# to more directly address the safety value of the borrow checker. Ownership and lifetime are outside the scope of what this paper is addressing.
 
 ## The Three-Layer Safety Model
 
