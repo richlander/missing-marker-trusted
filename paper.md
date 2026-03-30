@@ -319,7 +319,7 @@ stdlib/public/Synchronization/Mutex/Mutex.swift
 194-  public borrowing func unsafeUnlock() {
 ```
 
-Discoverable after you realize the pattern. The Rust one-line syntax (`unsafe fn`) is more ergonomic here, but Swift's approach is perfectly workable.
+Perfectly workable after you realize the pattern. The Rust one-line syntax (`unsafe fn`) is more ergonomic, however.
 
 **Finding unsafe expressions** — Swift uses `unsafe` as an expression prefix (not a block). In libraries that have adopted SE-0458 (e.g., [apple/swift-collections](https://github.com/apple/swift-collections)):
 
@@ -336,7 +336,7 @@ ContainersPreview/Types/Inout.swift:121:    let pointer = unsafe UnsafeMutablePo
 ContainersPreview/Types/Borrow.swift:87:    let pointer = unsafe UnsafePointer<Wrapped>(
 ```
 
-Each `unsafe` expression is a single operation — the scoping is tighter than Rust's `unsafe {}` blocks. Directly discoverable via regex.
+Each `unsafe` expression is a single operation — tighter scoping than Rust's `unsafe {}` blocks. Discoverable via regex, though the pattern is more complex than Rust's clean `unsafe fn` two-token match.
 
 #### Design tradeoff
 
