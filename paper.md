@@ -458,7 +458,7 @@ The trust boundary gap has discussion and productization to support it. Rust has
 
 The `unsafe` keyword — for modern mainline languages — starts with C#. C# 1.0 (2001) introduced it as a compiler-enforced keyword, the first mainstream language to give the safe/unsafe boundary a syntactic marker. D (2010) built a complete three-layer model with `@safe`, `@trusted`, and `@system` — the only language to address trust boundaries from the start. Rust (2015) extended C#'s `unsafe` keyword: `unsafe fn` as a caller contract, `unsafe {}` as scoped interior unsafe. Swift (2024–2025) went further with `@unsafe` as an attribute and `unsafe` as an expression prefix.
 
-Rust and Swift evolved the _unsafe_ side without addressing the _attestation_ side. D addressed attestation but built its model independently. C# introduced `unsafe`. D added `@trusted`. Rust and Swift evolved `unsafe`. C# can bring these threads together — pairing `unsafe` with `trusted` to close the gap. The language that started the keyword can be the first to complete the model.
+Rust (2015) and Swift (2024) evolved the _unsafe_ side without addressing the _attestation_ side. D (2010) addressed attestation but built its model independently. C# (2001) introduced `unsafe`. D (2010) added `@trusted`. Rust (2015) and Swift (2024) evolved `unsafe`. C# (2025) can bring these threads together — pairing `unsafe` with `trusted` to close the gap. The language that started the keyword can be the first to complete the model.
 
 ## Lossless Attestations
 
