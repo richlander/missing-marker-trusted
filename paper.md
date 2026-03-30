@@ -42,6 +42,23 @@ Relevant design specs:
 - Rust: [RFC 2585 — unsafe block in unsafe fn](https://rust-lang.github.io/rfcs/2585-unsafe-block-in-unsafe-fn.html)
 - Swift: [SE-0458 — Strict Memory Safety](https://github.com/swiftlang/swift-evolution/blob/main/proposals/0458-strict-memory-safety.md)
 
+## Discoverability scores
+
+This paper compares D, Rust, Swift, and three C# alternatives using grep as a proxy for design complexity. Each design is scored on how easily an auditor or agent can find trust boundaries and unsafe code, whether the safety model is enforced by default, and observable workflow problems. The [full methodology](#appendix-scoring-methodology) is in the appendix.
+
+| Design | Score |
+|--------|-------|
+| C# (optimal) — `unsafe` + `trusted`, default-on | **87.5%** |
+| Rust | **77.5%** |
+| C# + `unsafe` + `trusted` (opt-in) | **72.5%** |
+| C# + `unsafe` keyword (no `trusted`) | **50.0%** |
+| Swift | **50.0%** |
+| D | **40.0%** |
+| C# (current) | **35.0%** |
+| C# + `RequiresUnsafe` | **30.0%** |
+
+Rust leads today because its borrow checker and safety model have always been default-on. Adding `trusted` to C# closes most of the gap. The rest of the paper builds the case for these results.
+
 ## The Three-Layer Safety Model
 
 A three-layer safety model — safe, trust boundary, unsafe — is a recurring pattern in platform design. .NET pioneered it with Silverlight. D independently arrived at the same architecture. Both validate the approach.
@@ -185,23 +202,6 @@ Here are some prompts to consider:
 - "For this PR, review every trusted method that was added or modified."
 
 These prompts are currently expensive in C# — and in D, Rust, and Swift. Testing the first prompt against dotnet/runtime required ~14 grep commands and significant manual inference just to distinguish trust boundary functions from fully-unsafe methods. The second required ~8 commands plus semantic reasoning to categorize results by purpose. The third is effectively unbounded without a starting set of trust boundaries to evaluate. With `trusted`, prompt 1 becomes a single `rg "trusted" --type cs src/libraries/System.IO*` command. The model reads the bodies of the results and answers directly. We can make these prompts cheap.
-
-### How the designs compare
-
-This paper scores each design on discovery, auditing design, and observable workflow problems. The [full methodology](#appendix-scoring-methodology) is in the appendix. The headline:
-
-| Design | Score |
-|--------|-------|
-| C# (optimal) — `unsafe` + `trusted`, default-on | **87.5%** |
-| Rust | **77.5%** |
-| C# + `unsafe` + `trusted` (opt-in) | **72.5%** |
-| C# + `unsafe` keyword (no `trusted`) | **50.0%** |
-| Swift | **50.0%** |
-| D | **40.0%** |
-| C# (current) | **35.0%** |
-| C# + `RequiresUnsafe` | **30.0%** |
-
-Rust leads today because its safety model has always been default-on. Adding `trusted` to C# closes most of the gap. The full analysis follows in the [scoring section](#discoverability-and-auditing-scores).
 
 ## The case against `safe` for Trust Boundary Functions
 
