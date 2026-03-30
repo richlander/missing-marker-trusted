@@ -43,7 +43,7 @@ Relevant design specs:
 
 We've primarily been looking at Rust and Swift. I think we can also learn from D. We're in the enviable position where we can pick from the best ideas of the last couple decades. One can argue that C# established this modern domain, of safe languages with first-class memory access and FFI. The optimal solution is well within reach, with just a few tweaks to our current plan.
 
-We can test the cost of inference using grep as a proxy. This paper compares D, Rust, Swift, and three C# alternatives — scoring each on how easily an auditor or agent can find trust boundaries and unsafe code, whether the safety model is enforced by default, and observable workflow problems. The [full methodology](#appendix-scoring-methodology) is in the appendix.
+The paper proposes grep as a proxy for inference cost and compares D, Rust, Swift, and three C# alternatives — scoring each on how easily an auditor or agent can find trust boundaries and unsafe code, whether the safety model is enforced by default, and observable workflow problems. The [full methodology](#appendix-scoring-methodology) is in the appendix.
 
 | Design | Score |
 |--------|-------|
