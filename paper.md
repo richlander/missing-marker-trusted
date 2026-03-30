@@ -336,7 +336,7 @@ ContainersPreview/Types/Inout.swift:121:    let pointer = unsafe UnsafeMutablePo
 ContainersPreview/Types/Borrow.swift:87:    let pointer = unsafe UnsafePointer<Wrapped>(
 ```
 
-Each `unsafe` expression is a single operation — tighter scoping than Rust's `unsafe {}` blocks. Discoverable via regex, though the pattern is more complex than Rust's clean `unsafe fn` two-token match.
+Each `unsafe` expression is a single operation — tighter scoping than Rust's `unsafe {}` blocks. Discoverable via regex, though the pattern is more complex than Rust's `unsafe {` (which also has a newline edge case).
 
 #### Design tradeoff
 
