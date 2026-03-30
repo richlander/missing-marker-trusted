@@ -172,13 +172,16 @@ Zooming out, we see that the performance substrate of the product becomes `ref`,
 
 The grep-friendly audit surface is `trusted` and `unsafe`. The performance surface migrates (as is already the case) to `ref`, in the safe subset.
 
-In fact, with a fully-specified model, there is no end of agent prompts that users can ask about a codebase and expect an accurate and efficient model. The fully-specified model enables a natural and cheap query engine. The key is discoverability on one hand and inference cost on the other.
+In fact, with a fully-specified model, there is no end of agent prompts that users can ask about a codebase and expect an accurate and efficient answer. The fully-specified model enables a natural and cheap query engine. The key is discoverability on one hand and inference cost on the other.
 
-Here are a couple prompts to consider:
+Here are some prompts to consider:
 
 - "Describe the primary concerns of the trust boundary within System.IO classes."
 - "Describe the split between performance optimization and interop of unsafe code in System.Collections."
 - "Which trusted or unsafe methods would be better written as ref?"
+- "List all trusted methods in System.Security that were modified in the last 6 months."
+- "Which unsafe methods have no trusted caller? These may be migration candidates or dead code."
+- "For this PR, review every trusted method that was added or modified."
 
 These prompts are currently expensive in C# — and in D, Rust, and Swift. Testing the first prompt against dotnet/runtime required ~14 grep commands and significant manual inference just to distinguish trust boundary functions from fully-unsafe methods. The second required ~8 commands plus semantic reasoning to categorize results by purpose. The third is effectively unbounded without a starting set of trust boundaries to evaluate. With `trusted`, prompt 1 becomes a single `rg "trusted" --type cs src/libraries/System.IO*` command. The model reads the bodies of the results and answers directly. We can make these prompts cheap.
 
