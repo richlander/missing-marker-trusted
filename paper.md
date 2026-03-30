@@ -456,9 +456,7 @@ C# (optimal) represents the `unsafe` keyword proposal plus `trusted`. The distan
 
 The trust boundary gap has discussion and productization to support it. Rust has engaged with it through [RFC 2585](https://rust-lang.github.io/rfcs/2585-unsafe-block-in-unsafe-fn.html) (separating "unsafe to call" from "body does unsafe things"), [RFC 3484](https://rust-lang.github.io/rfcs/3484-unsafe-extern-blocks.html) (introducing `safe` as a contextual keyword in extern blocks — someone [asked](https://github.com/rust-lang/rfcs/pull/3484) "why not `trusted`?"), [RFC 3768](https://github.com/rust-lang/rfcs/pull/3768) (safe blocks, closed), and [documentation conventions](https://internals.rust-lang.org/t/pre-rfc-rust-safety-standard/23963) (`// SAFETY:` comments). Swift's SE-0458 marks unsafe code but not trust boundaries. D solved it at the language level with `@trusted` from the start.
 
-The `unsafe` keyword — for modern mainline languages — starts with C#. C# 1.0 (2001) introduced it as a compiler-enforced keyword, the first mainstream language to give the safe/unsafe boundary a syntactic marker. D (2010) built a complete three-layer model with `@safe`, `@trusted`, and `@system` — the only language to address trust boundaries from the start. Rust (2015) extended C#'s `unsafe` keyword: `unsafe fn` as a caller contract, `unsafe {}` as scoped interior unsafe. Swift (2024–2025) went further with `@unsafe` as an attribute and `unsafe` as an expression prefix.
-
-Rust (2015) and Swift (2024) evolved the _unsafe_ side without addressing the _attestation_ side. D (2010) addressed attestation but built its model independently. C# (2001) introduced `unsafe`. D (2010) added `@trusted`. Rust (2015) and Swift (2024) evolved `unsafe`. C# (2025) can bring these threads together — pairing `unsafe` with `trusted` to close the gap. The language that started the keyword can be the first to complete the model.
+The `unsafe` keyword — for modern mainline languages — starts with C#. C# 1.0 (2001) introduced it as a compiler-enforced keyword, the first mainstream language to give the safe/unsafe boundary a syntactic marker. D (2010) built a complete three-layer model with `@safe`, `@trusted`, and `@system` — the only language to address trust boundaries from the start. Rust (2015) extended C#'s `unsafe` keyword: `unsafe fn` as a caller contract, `unsafe {}` as scoped interior unsafe. Swift (2024–2025) went further with `@unsafe` as an attribute and `unsafe` as an expression prefix. The language that started the keyword can be the first to complete the model.
 
 ## Lossless Attestations
 
@@ -476,7 +474,7 @@ The introduction references "Jia Tan territory" — the [xz/liblzma backdoor](ht
 
 The xz backdoor is instructive because it engaged all three tiers:
 
-- **Tier 3 (diff review)** — the malicious changes existed in version control. Reviewers missed them. The diffs were structurally unremarkable.
+- **Tier 3 (diff review)** — the malicious changes existed in version control. Reviewers missed them. The diffs were constructed to be structurally unremarkable.
 - **Tier 2 (tool warnings)** — the backdoor caused valgrind errors due to stack layout mismatches. Valgrind detected the problem. But Jia Tan [claimed it was a GCC bug](https://github.com/tukaani-project/xz/commit/82ecc538193b380a21622aea02b0ba078e7ade92), submitted a misdirecting "fix," and then quietly updated the malicious test files the next day. He had also preemptively [disabled ifunc in oss-fuzz builds](https://github.com/google/oss-fuzz/pull/10667) months earlier to prevent the fuzzer from catching the backdoor. The attacker actively subverted the tier 2 tooling because he had commit access and the warnings were advisory.
 - **Tier 1 (compiler errors)** — no compiler enforcement existed for the affected code path. The backdoor was never subjected to this tier.
 
@@ -500,17 +498,28 @@ Swift faces a related challenge with Apple's own frameworks. During the [SE-0458
 
 ## Agent-Assisted Maintenance
 
-The [follow-up PR](https://github.com/dotnet/csharplang/pull/10058) states: "High-confidence AI-assisted automation of the migration process flow is a part of the feature design." The inference cost of the safety model directly determines how effectively agents can participate.
+The [PR feedback](https://github.com/dotnet/csharplang/pull/10058#pullrequestreview-4016744830) states: "High-confidence AI-assisted automation of the migration process flow is a part of the feature design." The inference cost of the safety model directly determines how effectively agents can participate.
 
 A low-inference model enables agents to: inventory trust boundaries (`grep trusted` — complete, no AST required), scope reviews (check each `trusted` method's interior `unsafe` for correctness), detect drift (new `unsafe` blocks in a `trusted` method are flagged for re-review), and assist migration (propose `trusted` or `unsafe` annotations for methods with interior unsafe blocks).
 
 High-inference models force agents to build ASTs or rely on LSPs. This is more expensive, fragile across environments, and harder to validate.
 
-### Beyond grep: LSP integration
+### The LSP doesn't solve this
 
-Grep and LSP are complementary. Grep identifies the starting points — `trusted` and `unsafe` methods. An LSP builds the full picture: call graphs from trust boundaries (which unsafe operations are attested, who depends on that attestation), mermaid diagrams showing type hierarchy around trust boundaries, and targeted review scoping (start with `grep trusted`, ask the LSP for the call graph).
+One might assume that an LSP resolves the discovery problem — that agents with LSP access can simply query for trust boundaries or unsafe functions. They cannot.
 
-Grep is the entry point — fast, universal, available in every environment. The LSP is the follow-up — rich, structured, environment-dependent. A design that makes grep effective makes the entire toolchain more effective.
+The LSP protocol's `workspace/symbol` request filters by name and `SymbolKind` (Function, Method, Class, etc.) — but `SymbolKind` has no variant for unsafe or trusted. `SymbolTag` supports only `Deprecated`. No language has proposed extending the protocol with safety information. Specifically:
+
+- **rust-analyzer** provides [semantic highlighting](https://lukaswirth.dev/posts/semantic-unsafe/) for unsafe operations in an open file, but no workspace-wide inventory. There is no "list all unsafe functions" query.
+- **SourceKit-LSP** cannot filter by `@unsafe`. An [empty workspace/symbol query returns nothing](https://forums.swift.org/t/get-all-workspace-symbols-from-sourcekit-lsp/63433) — you can't even enumerate all symbols.
+- **Roslyn/OmniSharp** has no LSP query for unsafe methods. Roslyn's analyzer API can find `SyntaxKind.UnsafeKeyword` programmatically, but this requires writing a [custom analyzer](https://github.com/dotnet/roslyn-analyzers/issues/7518), not using the LSP.
+- **serve-d** (D) provides workspace symbol search, but since `@trusted` appears in function signatures, an LSP query returns it with the attribute visible — effectively grep with extra steps. D doesn't need the LSP for this.
+
+The LSP can do useful things once you're already looking at the right file — go-to-definition, find-references, call hierarchy. But it cannot *discover* safety-relevant code across a workspace. The assumption that "agents will always have an LSP" doesn't matter if the LSP can't answer the question.
+
+### Grep and LSP as complementary tools
+
+Where the LSP *does* add value is as a follow-up to grep. Grep identifies the starting points — `trusted` and `unsafe` methods. An LSP can then build call graphs from those starting points, generate mermaid diagrams showing type hierarchy around trust boundaries, and support targeted review scoping. But this workflow only works if grep can find the starting points. A design that makes grep effective makes the entire toolchain — including the LSP — more effective.
 
 ### The canonical audit workflow
 
