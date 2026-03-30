@@ -238,13 +238,13 @@ Memory safety across all languages inherently relies on human and agent auditing
 
 Auditing can be thought of as a subset of threat modeling. The search space of memory safety auditing is the divide between defined and undefined behavior — the same search space as vulnerabilities. It's two different views — one defensive, the other offensive — on the same activity. Threat modeling asks "where can an attacker violate assumptions? Memory safety auditing asks "where can code violate safety invariants?" Trust boundary functions are where someone claims that undefined behavior has been correctly bounded. If that claim is wrong, the result is both a bug and a potential vulnerability.
 
-There is a structural reason trust boundaries matter more than unsafe declarations for discovery: trust boundaries are the _roots of the audit graph_. A trust boundary function contains unsafe callsites in its body — the unsafe callees are the leaves. If you can find the roots, you can find the leaves by reading the body or grepping within the file. But if you can only find the leaves (unsafe functions and blocks), you cannot easily work upward to find which enclosing function attested their safety.
+There is a structural reason trust boundaries matter more than unsafe declarations for discovery: trust boundaries are the _roots of the audit graph_. A trust boundary function contains unsafe callsites in its body — the unsafe callees are the leaves. If you can find the roots, you can find the leaves by reading the body. But if you can only find the leaves (unsafe functions and blocks), you cannot easily work upward to find which enclosing function attested their safety.
 
-We can use grep as our proxy for sound language design. It matches how I've used [`jq` as the arbiter of sound schema design](https://github.com/dotnet/designs/blob/main/accepted/2025/cve-schema/cve_schema.md#design-philosophy). If a safety-relevant question can't be answered by grep, the language design has failed at self-description.
+We can use grep as our proxy for sound language design. It matches how I've used [`jq` as the arbiter of sound schema design](https://github.com/dotnet/designs/blob/main/accepted/2025/cve-schema/cve_schema.md#design-philosophy). If a safety-relevant question can't be answered by grep, the language design has failed at explicit self-description.
 
 ### Why grep?
 
-Code review — the primary context where safety-critical code is evaluated — operates at the grep level. When reviewing a pull request in GitHub or any diff view, there is no sophisticated language-specific tooling. The reviewer's tools are their eyes and Ctrl/CMD-F. An agent is more likely to use grep. Source code should stand on its own for safety review.
+Code review — the primary context where safety-critical code is evaluated — operates at the same level as grep. When reviewing a pull request in GitHub or any diff view, there is no sophisticated language-specific tooling. The reviewer's tools are their eyes and Ctrl/CMD-F. An agent is more likely to use grep. Source code should stand on its own for safety review.
 
 The analysis below uses [ripgrep](https://github.com/BurntSushi/ripgrep) and a set of awk-based scripts for the more complex queries. The scripts are triage tools with known limitations (string literals, macros, block comments can cause false positives). They are not authoritative audit tools but are reasonable approximations. They are also sadly presented as SOTA. All scripts are in the [`scripts/`](scripts/) directory.
 
@@ -574,7 +574,12 @@ C# (optimal) represents the mature state: `unsafe` keyword + `trusted` keyword +
 
 ## Design Tradeoffs
 
-Each language made deliberate choices. **D** prioritized trust boundary discoverability (`@trusted`) but its unsafe-first default confines the model to the safe subset. **Rust** prioritized unsafe scoping and invested in [Miri](https://github.com/rust-lang/miri) for soundness verification while leaving trust boundary discovery to conventions — its safe-first default means trust boundaries are structurally exhaustive but unmarked. **Swift** prioritized composability and shipped [strict memory safety checking](https://docs.swift.org/compiler/documentation/diagnostics/strict-memory-safety/) as a compiler audit mode — but it inventories unsafe usage sites, not trust boundaries, and uses warnings rather than errors. **C#** can combine D's trust boundary discoverability with Rust's safe-first exhaustiveness and unsafe-code discoverability — a combination none of the four currently achieves.
+Each language made deliberate choices:
+
+- **D** prioritized trust boundary discoverability (`@trusted`) but its unsafe-first default confines the model to the safe subset.
+- **Rust** prioritized unsafe scoping and invested in [Miri](https://github.com/rust-lang/miri) for soundness verification while leaving trust boundary discovery to conventions — its safe-first default means trust boundaries are structurally exhaustive but unmarked.
+- **Swift** prioritized composability and shipped [strict memory safety checking](https://docs.swift.org/compiler/documentation/diagnostics/strict-memory-safety/) as a compiler audit mode — but it inventories unsafe usage sites, not trust boundaries, and uses warnings rather than errors.
+- **C#** can combine D's trust boundary discoverability with Rust's safe-first exhaustiveness and unsafe-code discoverability — a combination none of the four currently achieves.
 
 ## Conclusion
 
