@@ -523,7 +523,9 @@ Where the LSP *does* add value is as a follow-up to grep. Grep identifies the st
 
 ### The canonical audit workflow
 
-The complete safety audit has two steps: (1) discover and inspect trust boundaries, (2) discover and inspect the unsafe code they depend on. No single language besides D handles step 1. D can do step 2 from a trust boundary — you read the `@trusted` function's body and trace into the `@system` calls. But D can't independently inventory all unsafe code via grep because `@system` is implicit. Rust excels at independent unsafe discovery but can't do step 1. The workflow below uses real code from real repos to demonstrate both steps, with D providing step 1 and Rust providing step 2.
+The safety audit has two activities: **TBF-directed review** (discover trust boundaries, trace into the unsafe code they attest) and **undirected unsafe review** (independently inventory all unsafe code, looking for patterns, known-bad operations, or code that should have been wrapped in a trust boundary but wasn't). TBF-directed review is the hard requirement — it follows the audit graph from roots to leaves. Undirected review is supplementary but important.
+
+D handles the hard requirement perfectly: `rg "@trusted"` finds the roots, and reading the body traces into the `@system` calls. But D can't do undirected review because `@system` is implicit. Rust handles the supplementary activity perfectly: `rg "unsafe fn"` inventories all unsafe code. But Rust can't do TBF-directed review because trust boundaries have no marker. The workflow below uses real code from real repos to demonstrate both activities, with D providing TBF-directed review and Rust providing undirected unsafe review.
 
 **Step 1: Discover trust boundaries** (D, [dlang/phobos](https://github.com/dlang/phobos))
 
