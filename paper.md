@@ -180,7 +180,7 @@ Here are some prompts to consider:
 - "Describe the split between performance optimization and interop of unsafe code in System.Collections."
 - "Which trusted or unsafe methods would be better written as ref?"
 - "List all trusted methods in System.Security that were modified in the last 6 months."
-- "Which unsafe methods have no trusted caller? These may be migration candidates or dead code."
+- "What is the ratio of trusted to unsafe methods in System.Runtime.InteropServices?"
 - "For this PR, review every trusted method that was added or modified."
 
 These prompts are currently expensive in C# — and in D, Rust, and Swift. Testing the first prompt against dotnet/runtime required ~14 grep commands and significant manual inference just to distinguish trust boundary functions from fully-unsafe methods. The second required ~8 commands plus semantic reasoning to categorize results by purpose. The third is effectively unbounded without a starting set of trust boundaries to evaluate. With `trusted`, prompt 1 becomes a single `rg "trusted" --type cs src/libraries/System.IO*` command. The model reads the bodies of the results and answers directly. We can make these prompts cheap.
