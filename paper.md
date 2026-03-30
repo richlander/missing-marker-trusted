@@ -515,15 +515,15 @@ The LSP protocol's `workspace/symbol` request filters by name and `SymbolKind` (
 - **Roslyn/OmniSharp** has no LSP query for unsafe methods. Roslyn's analyzer API can find `SyntaxKind.UnsafeKeyword` programmatically, but this requires writing a [custom analyzer](https://github.com/dotnet/roslyn-analyzers/issues/7518), not using the LSP.
 - **serve-d** (D) provides workspace symbol search, but since `@trusted` appears in function signatures, an LSP query returns it with the attribute visible — effectively grep with extra steps. D doesn't need the LSP for this.
 
-The LSP can do useful things once you're already looking at the right file — go-to-definition, find-references, call hierarchy. But it cannot *discover* safety-relevant code across a workspace. The assumption that "agents will always have an LSP" doesn't matter if the LSP can't answer the question.
+The LSP can do useful things once you're already looking at the right file — go-to-definition, find-references, call hierarchy. But it cannot *discover* safety-relevant code across a workspace.
 
 ### Grep and LSP as complementary tools
 
-Where the LSP *does* add value is as a follow-up to grep. Grep identifies the starting points — `trusted` and `unsafe` methods. An LSP can then build call graphs from those starting points, generate mermaid diagrams showing type hierarchy around trust boundaries, and support targeted review scoping. But this workflow only works if grep can find the starting points. A design that makes grep effective makes the entire toolchain — including the LSP — more effective.
+Where the LSP *does* add value is as a follow-up to grep. Grep identifies the starting points — `trusted` and `unsafe` methods. An LSP or similar tools can then build call graphs from those starting points, generate mermaid diagrams showing type hierarchy around trust boundaries, and support targeted review scoping. But this workflow only works if grep can find the starting points. A design that makes grep effective makes the entire toolchain — including the LSP — more effective.
 
 ### The canonical audit workflow
 
-The complete safety audit has two steps: (1) discover and inspect trust boundaries, (2) discover and inspect the unsafe code they depend on. No single language besides D handles step 1, and D can't do step 2. The workflow below uses real code from real repos to demonstrate both steps, with D providing step 1 and Rust providing step 2.
+The complete safety audit has two steps: (1) discover and inspect trust boundaries, (2) discover and inspect the unsafe code they depend on. No single language besides D handles step 1. D can do step 2 from a trust boundary — you read the `@trusted` function's body and trace into the `@system` calls. But D can't independently inventory all unsafe code via grep because `@system` is implicit. Rust excels at independent unsafe discovery but can't do step 1. The workflow below uses real code from real repos to demonstrate both steps, with D providing step 1 and Rust providing step 2.
 
 **Step 1: Discover trust boundaries** (D, [dlang/phobos](https://github.com/dlang/phobos))
 
