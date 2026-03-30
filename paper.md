@@ -1,6 +1,8 @@
 #  The Missing Marker: Trust Boundary Discoverability in Memory-Safe Languages
 
-I've been reading the excellent design notes from C#, D, Rust, and Swift design communities. Most of the focus is on how functions and interior blocks of code are decorated to highlight unsafety. The unsafe spotlight is clearly important but doesn't deliver confidence where it is most needed, the transition from unsafe to safe code. There's a term for that: "trust boundary". Our threat-modeling tradition emphasizes focus on that boundary above all else. Trusted boundary functions (TBF) should attract the most scrutiny with the strongest gates and marquee lights around them, however, the designs I've read leave them bare. It is reasonable to conclude that there is a gap between our threat modeling tradition and language design. We're in the middle of designing C# memory safety v2. It's the moment to bridge this divide. We can make C# a strong threat modeling tool.
+> This paper proposes adding a `trusted` keyword to C#, resulting in the only memory safety model that makes both trust boundaries and unsafe code grep-discoverable. A scoring model based on grep difficulty, auditing design, and observable workflow problems is used to compare D, Rust, Swift, and three C# alternatives. The proposal achieves B+ (87.5%) where no other design exceeds B.
+
+I've been reading the excellent design notes from C#, D, Rust, and Swift design communities. Most of the focus is on how functions and interior blocks of code are decorated to highlight unsafety. The unsafe spotlight is clearly important but doesn't deliver confidence where it is most needed: the transition from unsafe to safe code — the trust boundary. Our threat-modeling tradition emphasizes focus on that boundary above all else. Trusted boundary functions (TBF) should attract the most scrutiny with the strongest gates and marquee lights around them, however, the designs I've read leave them bare. It is reasonable to conclude that there is a gap between our threat modeling tradition and language design. We're in the middle of designing C# memory safety v2. It's the moment to bridge this divide. We can make C# a strong threat modeling tool.
 
 The key problem is that most of the language designs accept the lack of an unsafe marker as an indication that unsafe warnings/errors should be suppressed. We cannot know if the marker was deleted by accident or as a meaningful removal. In effect, these designs are storing a ternary value with a single bit. It's not clear why Rust and Swift chose that approach. Current C# stores this information in zero bits, which is even worse. We have the opportunity to resolve this critical language design point with new versions of C#.
 
@@ -14,7 +16,9 @@ Source: https://github.com/dotnet/designs/blob/main/accepted/2025/memory-safety/
 
 That's a compelling vision. Our ambition is that agents generate most C# code going forward and that they can self-drive migration to our new memory safety model over the next several years. The question is what "final authority on safety" means. It is a heavy lift in the text. It's describing a model that is lossless in intent and producing errors where the code is found to be wrong or subject to ambiguity. Removing `unsafe` (establishing the aforementioned absence) is an example of dangerous ambiguity. Lossy designs are an invitation for Jia Tan ([xz fame](https://en.wikipedia.org/wiki/XZ_Utils_backdoor)) to come visit.
 
-AI models will get better. Their capacity to fundamentally self-drive security work is a function of the language not AI innovation. Handcuffing agents with stringent language requirements will objectively produce better and more trustworthy results. If you follow Terence Tao, you will know that he has come to the same conclusion with mathematics research and the Lean proof language. He wants it to be both possible and mainstream for large groups of mathematicians and agents to work together to produce compelling and trusted proofs. The fact that C# is not a proof language is not critical to the point.
+AI models will get better. Their capacity to fundamentally self-drive security work is a function of the language not AI innovation. Handcuffing agents with stringent language requirements will objectively produce better and more trustworthy results.
+
+If you follow Terence Tao, you will know that he has come to the same conclusion with mathematics research and the Lean proof language. Lean makes proof obligations machine-checkable; `trusted` makes safety attestations machine-discoverable — same principle, different domain. Tao is as serious about correctness as we are, and the relationship between the mathematics and computer science communities is circular and reinforcing — the foundations of modern cryptography come from mathematics, and the tools for machine-verified proofs come from computer science. He wants it to be both possible and mainstream for large groups of mathematicians and agents to work together to produce compelling and trusted proofs.
 
 My overall take on a memory safety system:
 
@@ -88,7 +92,7 @@ This is the most workable safety model in production today, enabling high-confid
 
 All functions must be sound at all three layers. `@system` code must be correct given the preconditions that a `@trusted` caller guarantees — "safe" in the sense that a naive caller in `@safe` land cannot break memory safety invariants. Sound `@system` and `@trusted` code is the responsibility of the developer, not the compiler. That's true of Rust too.
 
-Note: The opt-in-to-safe approach is sensible for a systems language. That may seem strange or awkward for C#-oriented readers.
+Note: The opt-in-to-safe approach is sensible for a systems language and may seem strange to C#-oriented readers.
 
 #### Auditing workflow
 
@@ -504,7 +508,7 @@ Common/src/Interop/Windows/NCrypt/Interop.NCryptDeriveKeyMaterial.cs	19	NCryptDe
 Common/src/System/Net/Security/CertificateValidation.Windows.cs	17	BuildChainAndVerifyProperties ...
 ```
 
-Not directly discoverable. While all these scripts are likely to be found lacking, this example is likely the most lacking since it's targeting a language design with no strong notion of TBF.
+Not directly discoverable.
 
 **Finding unsafe code** — C# supports `unsafe` on methods, blocks, classes, and fields. It falls apart when methods and blocks are both present. A single directory shows the problem:
 
