@@ -440,7 +440,7 @@ public subscript() -> T {
   }
 ```
 
-`unsafeAddress` and `unsafeMutableAddress` are accessors that return raw pointers from property/subscript access — zero-copy performance but with no bounds checking or lifetime tracking. They look like identifiers, not safety keywords. An auditor grepping for `unsafe` gets noise from them; an auditor not grepping for them misses fundamentally unsafe accessor patterns hidden behind normal subscript syntax. C# solves the same zero-copy access problem with `ref` returns, which stay within the safe type system.
+`unsafeAddress` and `unsafeMutableAddress` are accessors that return raw pointers from a subscript (Swift's equivalent of a C# indexer) — zero-copy performance but with no bounds checking or lifetime tracking. The caller writes `box[]` with no indication that a raw pointer dereference is happening underneath. They look like identifiers, not safety keywords. An auditor grepping for `unsafe` gets noise from them; an auditor not grepping for them misses fundamentally unsafe accessors. C# solves the same zero-copy access problem with `ref` returns, which stay within the safe type system.
 
 #### Design tradeoff
 
