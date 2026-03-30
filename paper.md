@@ -1,6 +1,6 @@
 #  The Missing Marker: Trust Boundary Discoverability in Memory-Safe Languages
 
-I've been reading the excellent design notes from C#, D, Rust, and Swift design communities. Most of the focus is on how functions and interior blocks of code are decorated to highlight unsafety. The unsafe spotlight is clearly important but doesn't deliver confidence where it is most needed, the transition from unsafe to safe code. There's a term for that: "trust boundary". Our threat-modeling tradition emphasizes focus on that boundary above all else. Trusted boundary functions (TBF) should attract the  most scrutiny with the strongest gates and marquee lights around them, however, the designs I've read leave them bare. It is reasonable to conclude that there is a gap between our threat modeling tradition and language design. We're in the middle of designing C# memory safety v2. It's the moment to bridge this divide. We can make C# a strong threat modeling tool.
+I've been reading the excellent design notes from C#, D, Rust, and Swift design communities. Most of the focus is on how functions and interior blocks of code are decorated to highlight unsafety. The unsafe spotlight is clearly important but doesn't deliver confidence where it is most needed, the transition from unsafe to safe code. There's a term for that: "trust boundary". Our threat-modeling tradition emphasizes focus on that boundary above all else. Trusted boundary functions (TBF) should attract the most scrutiny with the strongest gates and marquee lights around them, however, the designs I've read leave them bare. It is reasonable to conclude that there is a gap between our threat modeling tradition and language design. We're in the middle of designing C# memory safety v2. It's the moment to bridge this divide. We can make C# a strong threat modeling tool.
 
 The key problem is that most of the language designs accept the lack of an unsafe marker as an indication that unsafe warnings/errors should be suppressed. We cannot know if the marker was deleted by accident or as a meaningful removal. In effect, these designs are storing a ternary value with a single bit. It's not clear why Rust and Swift chose that approach. Current C# stores this information in zero bits, which is even worse. We have the opportunity to resolve this critical language design point with new versions of C#.
 
@@ -12,7 +12,7 @@ Source: https://github.com/dotnet/designs/blob/main/accepted/2025/memory-safety/
 
 That's a compelling vision. Our ambition is that agents generate most C# code going forward and that they can self-drive migration to our new memory safety model over the next several years. The question is what "final authority on safety" means. It is a heavy lift in the text. It's describing a model that is lossless in intent and producing errors where the code is found to be wrong or subject to ambiguity. Removing `unsafe` (establishing the aforementioned absence) is an example of dangerous ambiguity. Lossy designs are an invitation for Jia Tan ([xz fame](https://en.wikipedia.org/wiki/XZ_Utils_backdoor)) to come visit.
 
-AI models will get better. Their capacity to fundamentally self-drive security work is a function of the language not AI innovation. Handcuffing agents with stringent language requirements will objectively produce better and more trustworthy results. If you follow Terence Tao, you will know that he has come to the same conclusion with mathematics research and the Lean proof language. He wants it to be both possible and maintstream for large groups of mathematicians and agents to work together to produce compelling and trusted proofs. The fact that C# is not a proof language is not critical to the point.
+AI models will get better. Their capacity to fundamentally self-drive security work is a function of the language not AI innovation. Handcuffing agents with stringent language requirements will objectively produce better and more trustworthy results. If you follow Terence Tao, you will know that he has come to the same conclusion with mathematics research and the Lean proof language. He wants it to be both possible and mainstream for large groups of mathematicians and agents to work together to produce compelling and trusted proofs. The fact that C# is not a proof language is not critical to the point.
 
 My overall take on a memory safety system:
 
@@ -82,7 +82,7 @@ The mapping to Silverlight is direct:
 | `@trusted` | Safe Critical | Trust boundary, attests safety to callers; unrestricted, unsafe operations |
 | `@system` | Security Critical | Unrestricted, unsafe operations |
 
-This is the most complete lossless safety model in production today, enabling high-confidence software auditing workflows.
+This is the most workable safety model in production today, enabling high-confidence software auditing workflows.
 
 All functions must be sound at all three layers. The `@system` code needs to be written to be correct and safe after safety obligations are discharged by a `@trusted` caller. Sound `@system` and `@trusted` code is the responsibility of the developer, not the compiler. That's true of Rust too.
 
@@ -102,7 +102,7 @@ However, these functions are in no way the opposite of unsafe. They contain and 
 
 TBFs handle unsafe currency and must do so soundly. They only differ in that they have the special character that they are considered safe to call by developers who typically have no basis or intent of applying safety scrutiny. TBFs are unsafe code that do double duty. It's that single bit and what it represents again.
 
-Another view is that the compiler can make a single statement about `unsafe` code: "I've got no earthly idea what is going on!". And so the marker fits. The same statement equally applies to TBFs. The concept of `safe` should only be applied when the compiler can make a  guarantee: "I know exactly what is going on and it 100% aligns with my safety model."
+Another view is that the compiler can make a single statement about `unsafe` code: "I've got no earthly idea what is going on!". And so the marker fits. The same statement equally applies to TBFs. The concept of `safe` should only be applied when the compiler can make a guarantee: "I know exactly what is going on and it 100% aligns with my safety model."
 
 I was thinking about terms. The obvious terms are:
 
@@ -123,6 +123,31 @@ There is some discussion about using `safe` for `extern` methods. We shouldn't u
 
 `safe` is a compiler attestation while `trusted` is a human or agent attestation. Don't confuse the two as they are not similar.
 
+## Analysis of the `unsafe`/`safe` Keyword Proposal
+
+A [follow-up PR](https://github.com/dotnet/csharplang/pull/10058) proposes going back to `unsafe`/`safe` keywords, motivated by practical experience annotating dotnet/runtime: 97% of methods with pointers should be `RequiresUnsafe`, making the attribute approach high-churn for little benefit. The PR also introduces `safe` for extern methods that wrap safe native code (e.g., a P/Invoke into a safe Rust function). That PR's goals align with this paper:
+
+> 1) clear, simple rules on which methods are caller unsafe vs. use unsafe
+> 2) users annotate their code based on the rules of unsafev2, not unsafev1
+> 3) annotation is easily auditable, meaning we can see whether a given project has aligned their code with unsafev2
+> 4) support for multitargeting with unsafev1-only TFMs
+>
+> This feature will introduce compilation errors in existing unsafe code when opted into. High-confidence AI-assisted automation of the migration process flow is a part of the feature design.
+
+The PR uses `safe` as the keyword. This paper argues for `trusted` instead: these methods are not safe in the compiler-verified sense — they are unsafe code that attests safety to callers. `trusted` avoids that confusion and aligns with D's `@trusted` and our Silverlight "safe critical" precedent. `[RequiresUnsafe(false)]` would be model-equivalent but is a double negative — it negates a property rather than asserting one. `rg "trusted"` reads as intent; `rg "RequiresUnsafe(false)"` reads as an implementation detail.
+
+### The `trusted` keyword
+
+| Layer | C# syntax | Meaning |
+|-------|-----------|---------|
+| Safe | (unmarked) | No unsafe operations, can only call safe and `trusted` methods |
+| Trust boundary | `trusted` | Contains `unsafe` blocks, attests safety to callers |
+| Unsafe | `unsafe` | Caller-unsafe, obligations must be discharged by caller |
+
+**Design details:** As a contextual keyword modifier, `trusted` occupies the same syntactic position as `unsafe` and inherits its design answers for interfaces, virtual methods, async methods, and delegates. If `unsafe` is valid on a method signature, `trusted` is valid there too — they are complementary markers in the same design space. Methods inside an `unsafe class` that present a safe surface should still use `trusted` explicitly — eliminating the "implicit unsafe type" audit gap. Interior lambdas and local functions are covered by the enclosing `trusted` method's attestation, matching D's `@trusted` model.
+
+**Migration path:** `trusted` is an additive contextual keyword — not inherently breaking. Phase 1: analyzer warns on unannotated trust boundaries. Phase 2: `trusted` becomes a recognized modifier, opt-in via `LangVersion`. Phase 3: the warning becomes an error. Migration tooling scans for methods with interior `unsafe` blocks, marks them `unsafe` conservatively, and developers triage to `trusted` where appropriate.
+
 ## Applying the Model to C\#
 
 C# has the opposite model as D: unsafe code is marked and safe isn't. The difference is an audience and form factor bias. It doesn't matter for effective memory safety. The decorative approach for the middle layer is what matters most.
@@ -141,6 +166,28 @@ unsafe void M() { }
 ```
 
 The design notes: "by presenting a safe API around an unsafe call, [the programmer is] asserting that all safety concerns of `M()` have been addressed." That assertion is the trust boundary — but `Caller2` has no marker on its signature. It is indistinguishable via its signature from a method that does not touch unsafe code.
+
+With the proposed `trusted` keyword, the three roles become visible:
+
+```csharp
+trusted void Caller2()
+{
+    unsafe
+    {
+        M();
+    }
+}
+
+unsafe void M() { }
+
+void SafeCaller()
+{
+    Caller2();  // OK — trusted is callable from safe code
+    // M();     // Error — unsafe requires unsafe context
+}
+```
+
+`Caller2` is now grep-discoverable as a trust boundary. The three roles — safe (`SafeCaller`), trust boundary (`Caller2`), and unsafe (`M`) — are each unambiguously identifiable from their signatures alone.
 
 The [unsafe evolution proposal](https://github.com/dotnet/csharplang/blob/main/proposals/unsafe-evolution.md) introduces `RequiresUnsafe` for caller-unsafe methods but similarly leaves trust boundary functions unmarked. The [alternative syntax proposal](https://github.com/dotnet/csharplang/blob/main/meetings/working-groups/unsafe-evolution/unsafe-alternative-syntax.md) explicitly notes that `[RequiresUnsafe]` "does not imply that the member is an unsafe context" — the author scopes `unsafe` blocks as they see fit, but the enclosing method gets no marker.
 
@@ -172,7 +219,7 @@ These prompts are expensive in D, Rust, and Swift. They are currently expensive 
 
 ### The end state
 
-Zooming out, we see that the performance substrate of the product become `ref`, `trusted`, and `unsafe`.
+Zooming out, we see that the performance substrate of the product becomes `ref`, `trusted`, and `unsafe`.
 
 - `ref` — safe pointer. Compiler-verified. Zero-copy access with lifetime tracking. No audit
 needed.
@@ -185,41 +232,13 @@ The grep-friendly audit surface is `trusted` and `unsafe`. The performance surfa
 
 The `RequiresUnsafe` attribute in the current language proposal marks which color of methods can call the target method. It's a compound term that harbors a double-negative. That's not great. We know that humans have low comprehension for double negatives. The same is true for models. We're back to high inference.
 
-One of my favorite websites is the [OpenAI Tokenizer](https://platform.openai.com/tokenizer).
-
-Let's ask it for insight.
-
-`unsafe` keyword:
-
-![unsafe keyword tokens](https://github.com/user-attachments/assets/59554280-faa1-480b-ba2a-af8d6325a4e0)
-
-`trusted` keyword:
-
-![trusted keyword tokens](https://github.com/user-attachments/assets/ca0fde0d-52d4-49f5-b563-da7b5d5c1cf8)
-
-`RequiresUnsafeAttribute` tokens:
-
-![RequiresUnsafe attribute tokens](https://github.com/user-attachments/assets/1f9c97aa-a7f3-436d-9896-e9d561a679a4)
-
-`RequiresUnsafeAttribute(true)` tokens:
-
-![RequiresUnsafe(true) attribute tokens](https://github.com/user-attachments/assets/31914393-6aee-446c-a540-fc25b583372e)
-
-`RequiresUnsafeAttribute(false)` tokens:
-
-![RequiresUnsafe(false) attribute tokens](https://github.com/user-attachments/assets/ab90356e-9425-498d-a31d-24d99f6df7b9)
-
-Conclusion: non-compound, non-double-negative, terms are better.
-
-I spent some time trying to develop a good mental model of what's actually going on here. If a human or agent is using `grep`, the distinction between these representations isn't critical. Take the few seconds to construct the grep query and move on. `grep` does its thing and it doesn't care. The semantic mind can then interpret the results. A-OK. The rub is when the semantic mind is asked to directly review code, in a PR, an editor, or a context window. In that case, the semantic mind is responsible for the role of `grep` and the higher-level analysis. That's when `RequiresUnsafe` is objectively the weaker choice.
-
-Attention is the mechanism where a model resolves how tokens relate — a fixed computational budget per layer. When the representation is clean — `trusted` vs `unsafe` — that budget goes to the safety question. When the representation encodes a double negative — `RequiresUnsafe(false)` — some of that budget goes to disambiguating the term itself. Ambiguous representations also tend to require additional reasoning passes, each consuming real energy. The cost is cumulative across every review. We can conclude that languages with less inference are cheaper to review.
+The tokenizer representation of these terms is not equivalent: `trusted` and `unsafe` are each single tokens while `RequiresUnsafeAttribute(false)` spans seven. Like grep, the tokenizer is a proxy for representational complexity — and like grep, it favors simple, direct terms over compound double-negative ones. This matters most during direct code review — in a PR, editor, or context window — where the reviewer performs both discovery and safety analysis in one pass. Compound double-negative terms consume cognitive budget on disambiguation rather than the safety question itself. See [Appendix: Tokenizer Comparison](#appendix-tokenizer-comparison) for details.
 
 ## Measuring Discoverability: The Grep Test
 
 Memory safety across all languages inherently relies on human and agent auditing. The compiler verifies safe code by construction. But `trusted` and `unsafe` code cannot be verified by the compiler. They require semantic review: a human or agent must confirm that the unsafe operations are correctly bounded and that the trust boundary's safety attestation is valid. The audit value of methods is therefore inherently asymmetric. Safe code doesn't need review. Trust boundary functions need the most review. Unsafe functions need review too, but the trust boundary is where the claim is made.
 
-Auditing can be thought of as a subset of threat modeling. The search space of memory safety auditing is the divide between defined and undefined behavior — the same search space as vulnerabilities. It's two different views -- one defensive the other offensive -- on the same activity. Threat modeling asks "where can an attacker violate assumptions? Memory safety auditing asks "where can code violate safety invariants?" Trust boundary functions are where someone claims that undefined behavior has been correctly bounded. If that claim is wrong, the result is both a bug and a potential vulnerability.
+Auditing can be thought of as a subset of threat modeling. The search space of memory safety auditing is the divide between defined and undefined behavior — the same search space as vulnerabilities. It's two different views — one defensive, the other offensive — on the same activity. Threat modeling asks "where can an attacker violate assumptions? Memory safety auditing asks "where can code violate safety invariants?" Trust boundary functions are where someone claims that undefined behavior has been correctly bounded. If that claim is wrong, the result is both a bug and a potential vulnerability.
 
 There is a structural reason trust boundaries matter more than unsafe declarations for discovery: trust boundaries are the _roots of the audit graph_. A trust boundary function contains unsafe callsites in its body — the unsafe callees are the leaves. If you can find the roots, you can find the leaves by reading the body or grepping within the file. But if you can only find the leaves (unsafe functions and blocks), you cannot easily work upward to find which enclosing function attested their safety.
 
@@ -554,31 +573,6 @@ The two active C# proposals — `unsafe` keyword and `[RequiresUnsafe]` — land
 
 C# (optimal) represents the `unsafe` keyword proposal plus `trusted`. The distance from **F** to **A** is one keyword (`trusted`) and two semantic commitments (caller contract, implementation-only interior). All have prior art — D has the keyword, Rust and Swift have the semantics.
 
-## Developing the C# Proposal
-
-A [follow-up PR](https://github.com/dotnet/csharplang/pull/10058) proposes going back to `unsafe`/`safe` keywords, motivated by practical experience annotating dotnet/runtime: 97% of methods with pointers should be `RequiresUnsafe`, making the attribute approach high-churn for little benefit. The PR also introduces `safe` for extern methods that wrap safe native code (e.g., a P/Invoke into a safe Rust function). That PR's goals align with this paper:
-
-> 1) clear, simple rules on which methods are caller unsafe vs. use unsafe
-> 2) users annotate their code based on the rules of unsafev2, not unsafev1
-> 3) annotation is easily auditable, meaning we can see whether a given project has aligned their code with unsafev2
-> 4) support for multitargeting with unsafev1-only TFMs
->
-> This feature will introduce compilation errors in existing unsafe code when opted into. High-confidence AI-assisted automation of the migration process flow is a part of the feature design.
-
-The PR uses `safe` as the keyword. This paper argues for `trusted` instead: these methods are not safe in the compiler-verified sense — they are unsafe code that attests safety to callers. `trusted` avoids that confusion and aligns with D's `@trusted` and our Silverlight "safe critical" precedent. `[RequiresUnsafe(false)]` would be model-equivalent but is a double negative — it negates a property rather than asserting one. `rg "trusted"` reads as intent; `rg "RequiresUnsafe(false)"` reads as an implementation detail.
-
-### The `trusted` keyword
-
-| Layer | C# syntax | Meaning |
-|-------|-----------|---------|
-| Safe | (unmarked) | No unsafe operations, can only call safe and `trusted` methods |
-| Trust boundary | `trusted` | Contains `unsafe` blocks, attests safety to callers |
-| Unsafe | `unsafe` | Caller-unsafe, obligations must be discharged by caller |
-
-**Design details:** Methods inside an `unsafe class` that present a safe surface should still use `trusted` explicitly — eliminating the "implicit unsafe type" audit gap. Interior lambdas and local functions are covered by the enclosing `trusted` method's attestation, matching D's `@trusted` model.
-
-**Migration path:** `trusted` is an additive contextual keyword — not inherently breaking. Phase 1: analyzer warns on unannotated trust boundaries. Phase 2: `trusted` becomes a recognized modifier, opt-in via `LangVersion`. Phase 3: the warning becomes an error. Migration tooling scans for methods with interior `unsafe` blocks, marks them `unsafe` conservatively, and developers triage to `trusted` where appropriate.
-
 ## Design Tradeoffs
 
 Each language made deliberate choices. **D** prioritized trust boundary discoverability (`@trusted`) at the cost of invisible unsafe code. **Rust** prioritized unsafe scoping and invested in [Miri](https://github.com/rust-lang/miri) for soundness verification (step 3 of the audit workflow) while leaving trust boundary discovery (step 1) to conventions. **Swift** prioritized composability and shipped [strict memory safety checking](https://docs.swift.org/compiler/documentation/diagnostics/strict-memory-safety/) as a compiler audit mode — but it inventories unsafe usage sites, not trust boundaries. **C#** can combine D's trust boundary discoverability with Rust's unsafe-code discoverability — a combination none of the four currently achieves.
@@ -706,6 +700,26 @@ Base possible: 18 (discovery) + 2 (auditing) = **20**
 | C | 50–69% |
 | D | 30–49% |
 | F | < 30% |
+
+### Sensitivity analysis: equal weighting
+
+The 6:3 weighting reflects this paper's thesis that trust boundary discovery is the primary audit activity. A reader who values both dimensions equally should see how the scores change. Under equal 3:3 weighting (base possible: 14):
+
+| Language | Discovery | Auditing | Demerits | Total | % | Grade |
+|----------|-----------|----------|----------|-------|---|-------|
+| C# (optimal) | 10.5 | 2 | -1 | 11.5 | 82.1% | **B** |
+| Rust | 7.5 | 2 | 0 | 9.5 | 67.9% | **C** |
+| D | 6 | 2 | 0 | 8 | 57.1% | **C** |
+| C# + `unsafe` keyword | 6 | 2 | -1 | 7 | 50.0% | **C** |
+| Swift | 6 | 2 | -1 | 7 | 50.0% | **C** |
+| C# + `RequiresUnsafe` | 6 | 2 | -5 | 3 | 21.4% | **F** |
+| C# (current) | 6 | 0 | -5 | 1 | 7.1% | **F** |
+
+The most visible shift: D drops from **B** to **C**. Its zero score for unsafe declaration discovery is no longer masked by the trust boundary weight. Rust rises within **C** (55% → 68%) as its strength in unsafe declaration discovery gains relative weight. C# (optimal) drops from **B+** to **B** but remains the clear leader.
+
+The structural reason for the 6:3 weighting is asymmetry of inference. Trust boundaries are the _roots_ of the audit graph — an auditor who finds a `@trusted` function can read its body to discover the `@system` calls inside it. The direction works: roots lead to leaves. But an auditor who finds an `unsafe fn` cannot work upward to find which enclosing function attested its safety — leaves do not lead to roots. D's trust-boundary-only discovery still provides a complete audit workflow (find roots, trace to leaves). Rust's unsafe-only discovery provides an inventory but not an audit path (find leaves, cannot find roots). The higher weight on trust boundary discovery reflects this directional asymmetry: the root-to-leaf direction is strictly more useful than the leaf direction alone.
+
+Equal weighting compresses the middle of the table but does not change the conclusion: C# (optimal) with `trusted` is the only design that scores well on both dimensions regardless of weighting.
 
 ### Roadmap
 
@@ -838,3 +852,29 @@ $ rg "unsafe" --type cs -A 20               # Step 2: inspect unsafe code
 ```
 
 The first command finds every trust boundary. The second finds every unsafe operation with body context. Together they give the auditor the complete safety-critical picture: who attested what, and what unsafe operations they're attesting to. No other language in this comparison achieves both.
+
+## Appendix: Tokenizer Comparison
+
+The [OpenAI Tokenizer](https://platform.openai.com/tokenizer) shows that the keyword and attribute representations are not equivalent from a model's perspective.
+
+`unsafe` keyword:
+
+![unsafe keyword tokens](https://github.com/user-attachments/assets/59554280-faa1-480b-ba2a-af8d6325a4e0)
+
+`trusted` keyword:
+
+![trusted keyword tokens](https://github.com/user-attachments/assets/ca0fde0d-52d4-49f5-b563-da7b5d5c1cf8)
+
+`RequiresUnsafeAttribute` tokens:
+
+![RequiresUnsafe attribute tokens](https://github.com/user-attachments/assets/1f9c97aa-a7f3-436d-9896-e9d561a679a4)
+
+`RequiresUnsafeAttribute(true)` tokens:
+
+![RequiresUnsafe(true) attribute tokens](https://github.com/user-attachments/assets/31914393-6aee-446c-a540-fc25b583372e)
+
+`RequiresUnsafeAttribute(false)` tokens:
+
+![RequiresUnsafe(false) attribute tokens](https://github.com/user-attachments/assets/ab90356e-9425-498d-a31d-24d99f6df7b9)
+
+`unsafe` and `trusted` are each single tokens. `RequiresUnsafeAttribute(false)` spans seven tokens. While tokenization alone does not determine comprehension, it is a reasonable proxy for representational complexity. The compound, double-negative form encodes the same safety information in a representation that is strictly harder to parse — for both humans and models. This aligns with the grep-based findings: simpler representations yield lower inference cost across every review context.
