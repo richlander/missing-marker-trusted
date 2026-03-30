@@ -1,12 +1,12 @@
-#  The Missing Marker: Trust Boundary Discoverability in Memory-Safe Languages
+# The Missing Marker: Trust Boundary Discoverability in Memory-Safe Languages
 
-> This paper proposes adding a `trusted` keyword to C#, resulting in the only memory safety model that makes both trust boundaries and unsafe code grep-discoverable. There is no established metric for comparing safety model discoverability across languages — the absence of one may explain why the trust boundary gap has persisted. This paper proposes a scoring model based on grep difficulty, auditing design, and observable workflow problems to compare D, Rust, Swift, and three C# alternatives. The optimal C# design scores 88% at maturity — where no other language exceeds 78%.
+> This paper proposes adding a marker for trust boundary methods, adding a `trusted` keyword to C#. This proposal will resultin in the only memory safety model that makes both trust boundaries and unsafe code grep-discoverable. There is no established metric for comparing safety model discoverability across languages — the absence of one may explain why the trust boundary gap has persisted. This paper proposes a scoring model based on grep difficulty, auditing design, and observable workflow problems to compare D, Rust, Swift, and three C# alternatives. The optimal C# design scores 88% at maturity — where no other language exceeds 78%.
 
 I've been reading the excellent design notes from C#, D, Rust, and Swift design communities. Most of the focus is on how functions and interior blocks of code are decorated to highlight unsafety. The unsafe spotlight is clearly important but doesn't deliver confidence where it is most needed: the transition from unsafe to safe code — the trust boundary. Our threat-modeling tradition emphasizes focus on that boundary above all else. Trusted boundary functions (TBF) should attract the most scrutiny with the strongest gates and marquee lights around them, however, the designs I've read leave them bare. It is reasonable to conclude that there is a gap between our threat modeling tradition and language design. We're in the middle of designing C# memory safety v2. It's the moment to bridge this divide. We can make C# a strong threat modeling tool.
 
 The key problem is that most of the language designs accept the lack of an unsafe marker as an indication that unsafe warnings/errors should be suppressed. We cannot know if the marker was deleted by accident or as a meaningful removal. In effect, these designs are storing a ternary value with a single bit. Current C# stores this information in zero bits, which is even worse. We have the opportunity to resolve this critical language design point with new versions of C#.
 
-This gap is not obvious from the surface. Safe/unsafe reads as a clean dichotomy, and "mark the dangerous stuff" is the natural design instinct — every language has followed it. The non-obvious truth is that the _transition point_ matters more than the dangerous code itself. Rust's RFC 2585, Swift's SE-0458, and our own proposals all engage with the trust boundary problem without closing it. The grep test in this paper makes the gap visible: `rg "unsafe"` gives you an inventory of dangerous code, but no way to work upward to who attested its safety. Trust boundaries are the roots of the audit graph — and they are invisible in every language except D (with caveats discussed later).
+This gap is not obvious from the surface. Safe/unsafe reads as a clean dichotomy, and "mark the dangerous stuff" is the natural design instinct — every language has followed it. The non-obvious truth is that the _transition point_ matters more than the dangerous code itself. Rust's RFC 2585, Swift's SE-0458, and our own proposals all engage with the trust boundary problem without closing it. The grep test in this paper makes the gap visible: `rg "unsafe"` gives you an inventory of dangerous code, but no way to work upward to find an attestation of safety. Trust boundaries are the roots of the audit graph — and they are invisible in every language except D (with caveats discussed later).
 
 Let's look at our vision for memory safety v2:
 
@@ -14,7 +14,7 @@ Let's look at our vision for memory safety v2:
 
 Source: https://github.com/dotnet/designs/blob/main/accepted/2025/memory-safety/memory-safety.md
 
-That's a compelling vision. Our ambition is that agents generate most C# code going forward and that they can self-drive migration to our new memory safety model over the next several years. The question is what "final authority on safety" means. It is a heavy lift in the text. It's describing a model that is lossless in intent and producing errors where the code is found to be wrong or subject to ambiguity. Removing `unsafe` (establishing the aforementioned absence) is an example of dangerous ambiguity. Lossy designs are an invitation for Jia Tan ([xz fame](https://en.wikipedia.org/wiki/XZ_Utils_backdoor)) to come visit.
+That's a compelling vision. Our ambition is that agents generate most C# code going forward and that they can self-drive migration to our new memory safety model over the next several years. The question is what "final authority on safety" means. It is a heavy lift in the text. It's describing a model that is lossless in intent and produces errors where the code is found to be wrong or subject to ambiguity. Removing `unsafe` (establishing the aforementioned absence) is an example of dangerous ambiguity. Lossy designs are an invitation for Jia Tan ([xz fame](https://en.wikipedia.org/wiki/XZ_Utils_backdoor)) to make a  visit.
 
 C#/.NET is primarily binary-distributed — consumers receive compiled assemblies, not source code. Compiler warnings during the library author's build are invisible downstream. Errors are the only safety signal that reliably crosses the binary boundary. Rust and Swift are primarily source-distributed; their consumers compile from source and see warnings themselves. This asymmetry raises the bar for C#: anything that is "just a warning" is effectively invisible to the majority of consumers. We need a safety model built on errors, not warnings.
 
@@ -26,9 +26,9 @@ My overall take on a memory safety system:
 - It should increase confidence while reducing (or at least focusing) manual effort, by simplifying workflows and limiting the search space.
 - Agent-assisted code migration and maintenance is a core part of our vision. We need to cater to that with a specific plan on how to durably deliver on it.
 - The success (and cost) of the system depends on the degree to which it relies on inference in the semantic domain. High inference means low clarity means low confidence means high cost.
-- We can quite easily test the cost of inference using grep as a proxy.
+- We can easily test the cost of inference using grep as a proxy.
 
-We've primarily been looking at Rust and Swift. I think we can learn more from D. D's three-layer architecture — with explicit trust boundaries — is the right model, though its unsafe-first default limits trust boundaries to the safe subset. We're in the enviable position where we can pick from the best ideas of the last one to two decades. One can argue that C# established this domain, of safe languages with first-class memory access and FFI. The spoiler is that the optimal solution is well within reach, with just a few tweaks to our current plan. C# can establish a strong memory safety model for the 2030s, which we truly expect will be the decade of agents.
+We've primarily been looking at Rust and Swift. I think we can also learn from D. D's three-layer architecture — with explicit trust boundaries — is the right model. We're in the enviable position where we can pick from the best ideas of the last couple decades. One can argue that C# established this modern domain, of safe languages with first-class memory access and FFI. The spoiler is that the optimal solution is well within reach, with just a few tweaks to our current plan. C# can establish a strong memory safety model for the 2030s, the decade of agents.
 
 Relevant design specs:
 
@@ -76,7 +76,7 @@ D has three safety tiers:
 
 That's a pyramid. Reasoning from the bottom:
 
-- `@system` functions are considered unsafe. Undecorated functions are implicitly `@system`.
+- `@system` functions have full system access and are considered unsafe. Undecorated functions are implicitly `@system`.
 - `@trusted` functions attest to presenting a safe facade for safe callers, while using `@system` functions for their implementation.
 - `@safe` functions operate within the safe compiler-enforced subset and may only call `@safe` and `@trusted` functions.
 
@@ -88,9 +88,9 @@ The mapping to Silverlight is direct:
 | `@trusted` | Safe Critical | Trust boundary, attests safety to callers; unrestricted, unsafe operations |
 | `@system` | Security Critical | Unrestricted, unsafe operations |
 
-D is the only shipping language with explicit trust boundaries, and the three-layer architecture is compelling. However, D's unsafe-first default (`@system` is implicit) limits the model's reach. In Silverlight, every method was classified — Transparent, SafeCritical, or SecurityCritical — with no implicit default category. D's model is closer to a Silverlight where SecurityCritical was implicit and the transparency model only applied to code that explicitly opted in. Trust boundaries (`@trusted`) only exist at the boundary where `@safe` code needs to cross into `@system` code. `@system` code calls other `@system` code directly — no `@trusted` needed, no trust boundary in the graph. The model provides guarantees for the safe subset rather than being a whole-system property.
-
 All functions must be sound at all three layers. `@system` code must be correct given the preconditions that a `@trusted` caller guarantees — "safe" in the sense that a naive caller in `@safe` land cannot break memory safety invariants. Sound `@system` and `@trusted` code is the responsibility of the developer, not the compiler. That's true of Rust too.
+
+D is the only shipping language with explicit trust boundaries, and the three-layer architecture is compelling. However, D's unsafe-first default (`@system` is implicit) limits the model's reach. In Silverlight, every method was classified — Transparent, SafeCritical, or SecurityCritical — with Transparent as the default. D's model is closer to a Silverlight where SecurityCritical was implicit and the transparency model only applied to code that explicitly opted in. Trust boundaries (`@trusted`) only exist at the boundary where `@safe` code needs to cross into `@system` code. `@system` code can call other `@system` code directly, with no trust boundary in the graph. The model provides guarantees for the safe subset rather than being a whole-system property.
 
 #### Auditing workflow
 
@@ -100,7 +100,7 @@ D developers can rely on grep to find `@trusted` functions — a genuine advanta
 
 ## Proposed Design for C\#
 
-C# has the opposite default as D: safe is implicit, unsafe is marked. This difference matters more than it appears. In a safe-first language, all unsafe code must be rooted by trust boundary functions or it is dead code — no safe caller can reach it. Trust boundaries become the exhaustive roots of the audit graph, not just entry points from a safe subset. The decorative approach for the middle layer is what matters most. This paper proposes a `trusted` keyword as that marker. The primary point is that we need an explicit trust boundary marker; the specific keyword is secondary.
+C# has the opposite default as D: safe is implicit, unsafe is marked. This difference matters more than it appears. In a safe-first language, all unsafe code must be rooted by trust boundary functions or it is dead code — no safe caller can reach it. Trust boundaries become the exhaustive roots of the audit graph, not just entry points from a safe subset. The decorative approach for the middle layer is what matters most. This paper proposes a `trusted` keyword as that marker. The primary point is that we need an explicit trust boundary marker; the specific form of the marker is secondary.
 
 ### The `trusted` keyword
 
@@ -149,9 +149,15 @@ void SafeCaller()
 
 All unmarked methods are implicitly safe. The three-layer model is exhaustive and non-overlapping — every path from safe to unsafe passes through `trusted` — which is the formal property that makes the grep test work.
 
-**Design details:** As a contextual keyword modifier, `trusted` occupies the same syntactic position as `unsafe` and inherits its design answers for interfaces, virtual methods, async methods, and delegates. If `unsafe` is valid on a method signature, `trusted` is valid there too — they are complementary markers in the same design space. Methods inside an `unsafe class` that present a safe surface should still use `trusted` explicitly — eliminating the "implicit unsafe type" audit gap. Interior lambdas and local functions are covered by the enclosing `trusted` method's attestation, matching D's `@trusted` model.
+**Design details:** As a contextual keyword modifier, `trusted` occupies the same syntactic position as `unsafe` and inherits its design answers for interfaces, virtual methods, async methods, and delegates. If `unsafe` is valid on a method signature, `trusted` is valid there too — they are complementary markers in the same design space. Methods inside an `unsafe class` that present a safe surface must use `trusted` explicitly — eliminating the "implicit unsafe type" audit gap. Interior lambdas and local functions are covered by the enclosing `trusted` method's attestation, matching D's `@trusted` model.
 
-**Migration path:** `trusted` is an additive contextual keyword. Like all the proposals in this space, opting in is a breaking change that requires work to compile without errors — the difference is degree, not kind. Phase 1: analyzer warns on unannotated trust boundaries. Phase 2: `trusted` becomes a recognized modifier. Phase 3: the warning becomes an error. Migration tooling scans for methods with interior `unsafe` blocks, marks them `unsafe` conservatively, and developers triage to `trusted` where appropriate.
+**Migration path:** `trusted` is an additive contextual keyword. Like all the proposals in this space, opting in is a breaking change that requires work to compile without errors — the difference is degree, not kind.
+
+1. Analyzer warns on unannotated trust boundaries.
+2. `trusted` becomes a recognized modifier.
+3. The warning becomes an error.
+
+Migration tooling scans for methods with interior `unsafe` blocks, marks them `unsafe` conservatively, and developers triage to `trusted` where appropriate.
 
 ### Proposed workflow
 
