@@ -1,8 +1,8 @@
 # Trust Boundary Discoverability in Memory-Safe Languages
 
-I've been reading the design notes from C#, D, Rust, and Swift design communities. Most of the focus is on how blocks of code are decorated to highlight unsafety. The unsafe spotlight is important but doesn't deliver confidence where you need it most, the transition from unsafe to safe code. That's a word for that: "trust boundary". Our threat-modeling tradition emphasizes focus on that boundary. This transition point should attract the most scrutiny — the boundary and what holds it up is what matters most. One can draw the conclusion that there is a gap between our threat modeling tradition and language design (across much of the industry). We're in the middle of designing C# memory safety v2. It's the moment to close this gap.
+I've been reading the excellent design notes from C#, D, Rust, and Swift design communities. Most of the focus is on how blocks of code are decorated to highlight unsafety. The unsafe spotlight is clearly important but doesn't deliver confidence where it is most needed, the transition from unsafe to safe code. There's a word for that: "trust boundary". Our threat-modeling tradition emphasizes focus on that boundary above all else. Trusted boundary functions (TBF) should attract the  most scrutiny with the strongest gates around them, however, the designs I've read do not bare that out. It is reasonable to conclude that there is a gap between our threat modeling tradition and language design (across much of the industry). We're in the middle of designing C# memory safety v2. It's the moment to bridge this divide.
 
-Most of the language designs accept the lack of an unsafe marker as an indication that unsafe warnings/errors can be suppressed. We cannot know if the marker was deleted by accident or as a meaningful removal. In effect, these designs are storing a ternary value with a single bit. It's not clear why Rust and Swift chose that approach. Current C# stores this information in zero bits, which is even worse. We have the opportunity to resolve this critical language design point with C#.
+Most of the language designs accept the lack of an unsafe marker as an indication that unsafe warnings/errors can be suppressed. We cannot know if the marker was deleted by accident or as a meaningful removal. In effect, these designs are storing a ternary value with a single bit. It's not clear why Rust and Swift chose that approach. Current C# stores this information in zero bits, which is even worse. We have the opportunity to resolve this critical language design point with new versions of C#.
 
 Let's look at our vision for memory safety v2:
 
@@ -10,18 +10,17 @@ Let's look at our vision for memory safety v2:
 
 Source: https://github.com/dotnet/designs/blob/main/accepted/2025/memory-safety/memory-safety.md
 
-That's a compelling vision. Our ambition is that agents generate most C# code going forward and that they can drive migration to our new memory safety model over the next several years. The vision implies a lossless design with clear attestation at the trust boundary. The phrase "final authority on safety" is indeed a heavy lift. Removing `unsafe` (establishing the aforementioned absence) should result in compiler errors. Lossy designs get us into scary Jia Tan ([xz fame](https://en.wikipedia.org/wiki/XZ_Utils_backdoor)) territory.
+That's a compelling vision. Our ambition is that agents generate most C# code going forward and that they can drive migration to our new memory safety model over the next several years. The question is what "final authority on safety means". It is relied on in the text for a heavy lift. It's describing a model that is lossless in intent and producing errors where the code is found to be wrong or subject to ambiguity. Removing `unsafe` (establishing the aforementioned absence) is such an example. Lossy designs get us into scary Jia Tan ([xz fame](https://en.wikipedia.org/wiki/XZ_Utils_backdoor)) territory.
 
-My overall take:
+My overall take on a memory safety system:
 
-- The value of a memory safety system is enforcement and auditing, automatic or otherwise.
-- The mechanistic basis is an inherently collaborative auditing system between deterministic (compiler) and semantic (human and/or agent) actors.
-- The semantic actors primarily act WITHOUT compiler assistance (like via an LSP).
-- The success of the system depends on the degree to which it relies on inference in the semantic domain. High inference means low clarity means low confidence.
+- The value is enforcement and auditing, both automatic and manual. It is a collaborating between a deterministic tool and a semantic mind (human or agent).
+- It should increase confidence while reducing (or at least focusing) manual effort, by simplying workflows and limiting the search space.
+- Agent-assisted code migration and maintenance is a core part of our vision. We need to cater to that with a vision on what that means.
+- The success (and cost) of the system depends on the degree to which it relies on inference in the semantic domain. High inference means low clarity means low confidence.
 - We can test the cost of inference using grep as a proxy.
-- Agent-assisted code migration and maintenance is a core part of our vision. A low-inference design model is a critical path to enabling that, with accuracy and cost metrics as equal concerns.
 
-We've primarily been looking at Rust and Swift. I think we can learn from D. It's likely the case that a merge of the best choices over the last decade (which is well after we stopped our design efforts in memory safety) will lead us to an optimal approach. The spoiler is that the optimal answer is well within reach, with just a few tweaks.
+We've primarily been looking at Rust and Swift. I think we can learn from D. We're in the enviable position where we can pick amount the best ideas of the last one to two decades. One can argue that C# established this domain, of safe languages with first-class FFI. The spoiler is that the optimal answer is well within reach, with just a few tweaks to our current plan.
 
 Relevant design specs:
 
@@ -55,15 +54,15 @@ That's a pyramid. Reasoning from the bottom:
 - `@trusted` functions can call `@system` or any other functions and present a caller-safe surface.
 - `@safe` functions operate within the safe subset and may only call `@safe` and `@trusted` functions.
 
-This approach can be thought of as an information-preserving model or a high-productivity/high-confidence software auditing system.
+This approach is presented as an lossless safety model, enabling  high-productivity/high-confidence software auditing workflows.
 
-All functions must be sound at all three layers. The `@system` code needs to be correct and safe to use after obligations are discharged by a `@trusted` caller. Sound `@system` and `@trusted` code is the responsibility of the developer, not the compiler. That's true of Rust too.
+All functions must be sound at all three layers. The `@system` code needs to written to be correct and safe after safety obligations are discharaged bya `@trusted` caller. Sound `@system` and `@trusted` code is the responsibility of the developer, not the compiler. That's true of Rust too.
 
-The opt-in-to-safe approach is sensible for a systems language.
+Note: The opt-in-to-safe approach is sensible for a systems language.
 
 #### Auditing workflow
 
-The D community's guidance confirms that `@trusted` is where the review budget goes. The official D blog [states](https://dlang.org/blog/2016/09/28/how-to-write-trusted-code-in-d/): "`@trusted` code is never mechanically checked for safety, so every line must be reviewed for correctness. For this reason, it's always advisable to keep the code that is `@trusted` as small as possible." Ate Eskola [writes](https://dlang.org/blog/2023/01/05/memory-safety-in-a-systems-programming-language-part-3/): "`@trusted` functions...need to be just as carefully reviewed, if not more so, as `@system` functions" and "it's many times more important than usual to keep `@system` and `@trusted` functions small and simple to review." The principle is clear: `@safe` code doesn't need manual review — the compiler verifies it. The audit focus narrows to `@trusted` and `@system`.
+The D community's guidance confirms that `@trusted` is where the review budget goes. The official D blog [states](https://dlang.org/blog/2016/09/28/how-to-write-trusted-code-in-d/): "`@trusted` code is never mechanically checked for safety, so every line must be reviewed for correctness. For this reason, it's always advisable to keep the code that is `@trusted` as small as possible." Ate Eskola [further emphasizes this idea](https://dlang.org/blog/2023/01/05/memory-safety-in-a-systems-programming-language-part-3/): "`@trusted` functions...need to be just as carefully reviewed, if not more so, as `@system` functions" and "it's many times more important than usual to keep `@system` and `@trusted` functions small and simple to review." The principle is clear: `@safe` code doesn't need manual review — the compiler verifies it. The audit focus narrows to `@trusted` and `@system`.
 
 D developers can rely on grep to find `@trusted` functions. It is powerful that grep _always_ finds the functions that need to be audited first. There is no need to look at the method implementation to determine the color of the method, or to rely on an AST or LSP.
 
@@ -79,9 +78,9 @@ Flashback terms:
 
 These are from our [security transparency model from Silverlight](https://learn.microsoft.com/previous-versions/dotnet/framework/code-access-security/security-transparent-code). I realized that D recreated the same thing, frankly with better names.
 
-That model had three layers with clear markings throughout, making auditing straightforward. "Transparent" code could only call other transparent or "safe critical" code. "Safe critical" and "security critical" code had the same access to privileged operations — the difference was caller contract, not capability. "Safe critical" code was the trust boundary: it could be called by transparent code and took on the obligation of validating inputs and presenting a safe surface. "Security critical" code could only be called by other critical code.
+That Silverlight model had three layers with clear markings throughout, making auditing straightforward. "Transparent" code could only call other transparent or "safe critical" code. "Safe critical" and "security critical" code had unencumbered access to privileged operations — the difference was caller contract, not capability. "Safe critical" code was the trust boundary: it could be called by transparent code and took on the obligation of validating inputs and presenting a safe surface. "Security critical" code not be called from transparent code.
 
-The mapping is direct:
+The obvious mapping:
 
 | D | Silverlight | Role |
 |---|-------------|------|
@@ -93,17 +92,17 @@ The Silverlight model was abandoned when Silverlight was abandoned — not becau
 
 You can imagine asking an agent to review all "safe critical" methods. It is trivial for the agent to find them. This is a definitional characteristic of a well-designed safety model.
 
-## Trust Boundary Functions
+## The case for TBFs as safe
 
-Trust Boundary Functions (TBF) are unsafe in the same way as any other unsafe function. They handle unsafe currency and must do so soundly. They only differ in that they have the special character that they are considered safe to call by developers who (in the general case) have no basis or intent of applying scrutiny. They take on a double duty.
+My initial thinking -- in C# parlance -- was to mark TBFs `safe` since that's the opposite of `unsafe`. However, these functions are in no way the opposite of unsafe. They _are_ unsafe, w/o caveat.
 
-My initial thinking -- in C# parlance -- was to call TBFs `safe` since that's the opposite of `unsafe`. However, these functions are in no way the opposite of unsafe. They _are_ unsafe plus a special bit. Another view is that the compiler can make a clear guarantee about `unsafe` code: "I've got no earthly idea what is going on!". And so the marker fits. However the same guarantee applies equally to TBFs. The concept of `safe` should only be applied when the compiler can guarantee that: "I know exactly what is going on and it aligns 100% with my model of safety." That's not remotely the case for TBFs.
+TBFs handle unsafe currency and must do so soundly. They only differ in that they have the special character -- that single bit again -- that they are considered safe to call by developers who typically have no basis or intent of applying safety scrutiny. TBFs are unsafe code that do double duty.
 
-"trusted" is a good term and aligns with "safe critical". What we really want is "attested-safe". That's a mouthfull. I also think it's a virtue to remove "safe" from the marking entirely. I like "trusted" as the term, matching the D language.
+Another view is that the compiler can make a single statement about `unsafe` code: "I've got no earthly idea what is going on!". And so the marker fits. The same statement equally applies to TBFs. The concept of `safe` should only be applied when the compiler can make a  guarantee: "I know exactly what is going on and it aligns 100% with my model of safety."
 
 ## Applying the Model to C\#
 
-C# has the opposite model as D: unsafe code is marked and safe isn't. The difference doesn't matter for effective memory safety. That's an audience and form factor bias. It's the decorative approach for the middle layer that matters most.
+C# has the opposite model as D: unsafe code is marked and safe isn't. The difference is an audience and form factor bias. It doesn't matter for effective memory safety. The decorative approach for the middle layer is what matters most.
 
 The [caller-unsafe design](https://github.com/dotnet/designs/blob/main/accepted/2025/memory-safety/caller-unsafe.md) recognizes trust boundary functions but does not mark them. Its `Caller2` example illustrates the pattern:
 
@@ -122,24 +121,30 @@ The design notes: "by presenting a safe API around an unsafe call, [the programm
 
 The [unsafe evolution proposal](https://github.com/dotnet/csharplang/blob/main/proposals/unsafe-evolution.md) introduces `RequiresUnsafe` for caller-unsafe methods but similarly leaves trust boundary functions unmarked. The [alternative syntax proposal](https://github.com/dotnet/csharplang/blob/main/meetings/working-groups/unsafe-evolution/unsafe-alternative-syntax.md) explicitly notes that `[RequiresUnsafe]` "does not imply that the member is an unsafe context" — the author scopes `unsafe` blocks as they see fit, but the enclosing method gets no marker.
 
-If caller-unsafe methods are marked as `unsafe`, then caller-safe methods with `unsafe` blocks should be marked as `trusted`. That's the same as D's `@trusted`. The presence of a `trusted` marking provides a language-required location to place an attestation and equally operates as a grep target for code review.
+Transition methods with `unsafe` blocks should be marked as `trusted` to make them safe-caller-callable. That's the same as D's `@trusted`, obviously. The presence of a `trusted` marking provides a location to place a language-enforced attestation and operates as a grep target for code review.
 
-Another benefit of `trusted` is that we can say that all unmarked methods are implicitly marked as `safe` and no other methods can take on that marking. Complete separation of kind.
+Another benefit of `trusted` is that we can say that all unmarked methods are implicitly marked as `safe` and no other methods can take on that marking. Complete separation of kind, the same as D.
 
-The migration approach:
+We've been talking a fair bit about migration. `trusted` seems to fix that.
 
 - A tool marks all methods with interior unsafe blocks as `unsafe`.
 - Developers mark those methods as `trusted` or address the errors presented by downstream callers.
+- It is easy to track transitions between `unsafe` and `trusted` with git, less so when one of the targets is empty string.
 
-This approach is lossless and grep-friendly. It preserves the three-layer model. It's actually better suited for auditing than D's approach: in D, `@safe` and `@trusted` code are easy to inventory, but in practice you want `@trusted` and `@system` code to be easy to inventory and audit. With a `trusted`/`unsafe` pairing in C#, the audit focus falls naturally on the trust boundaries (`trusted`) and the unsafe implementations (`unsafe`) rather than on purely safe code. To a large degree, safe code doesn't matter.
+This approach is lossless and grep-friendly. It preserves the three-layer model. It's actually better suited for auditing than D's approach: in D, `@safe` and `@trusted` code are easy to inventory, but in practice you want `@trusted` and `@system` code to be easy to discover and audit. With a `trusted`/`unsafe` pairing in C#, the audit focus falls naturally on the trust boundary (`trusted`) and the unsafe implementations (`unsafe`) rather than on purely safe code. To a large degree, safe code doesn't matter.
 
 ## Measuring Discoverability: The Grep Test
 
-Memory safety across all languages inherently relies on human and agent auditing. The compiler verifies safe code by construction — that's the value proposition. But `trusted` and `unsafe` code cannot be verified by the compiler. They require semantic review: a human or agent must confirm that the unsafe operations are correctly bounded and that the trust boundary's safety attestation is valid. The audit value of methods is therefore inherently asymmetric. Safe code doesn't need review. Trust boundary functions need the most review — they are where human judgment meets compiler enforcement. Unsafe functions need review too, but the trust boundary is where the claim is made.
+Memory safety across all languages inherently relies on human and agent auditing. The compiler verifies safe code by construction — that's the value proposition. But `trusted` and `unsafe` code cannot be verified by the compiler. They require semantic review: a human or agent must confirm that the unsafe operations are correctly bounded and that the trust boundary's safety attestation is valid. The audit value of methods is therefore inherently asymmetric. Safe code doesn't need review. Trust boundary functions need the most review — where human judgment meets compiler enforcement. Unsafe functions need review too, but the trust boundary is where the claim is made.
 
-Auditing in this sense is largely synonymous with threat modeling. The search space of memory safety auditing is the divide between defined and undefined behavior — the same search space as vulnerabilities. Threat modeling asks "where can an attacker violate assumptions?" Memory safety auditing asks "where can code violate safety invariants?" Trust boundary functions are where someone claims that undefined behavior has been correctly bounded. If that claim is wrong, the result is both a bug and a vulnerability. A grep target for trust boundaries is a grep target for the code that threat modelers care about most.
+Auditing can be thought of as a subset of threat modeling. The search space of memory safety auditing is the divide between defined and undefined behavior — the same search space as vulnerabilities. It's two different views -- one defensive the other offensive -- on the same activity. Threat modeling asks "where can an attacker violate assumptions?" Memory safety auditing asks "where can code violate safety invariants?" Trust boundary functions are where someone claims that undefined behavior has been correctly bounded. If that claim is wrong, the result is both a bug and a potential vulnerability. A grep target for trust boundaries is a grep target for the code that threat modelers care about most.
 
-There is a structural reason trust boundaries matter more than unsafe declarations for discovery: trust boundaries are the *roots* of the audit graph. A trust boundary function contains unsafe code in its body — the unsafe calls are the leaves. If you can find the roots, you can find the leaves by reading the body or grepping within the file. But if you can only find the leaves (unsafe functions and blocks), you cannot work upward to find which enclosing function attested their safety. There is no marker on the enclosing function to grep for. You need a parser. This is why every language that lacks a trust boundary marker requires an awk script to approximate what D achieves with `rg "@trusted"`.
+There is a structural reason trust boundaries matter more than unsafe declarations for discovery: trust boundaries are the _roots of the audit graph_. A trust boundary function contains unsafe code in its body — the unsafe calls are the leaves. If you can find the roots, you can find the leaves by reading the body or grepping within the file. But if you can only find the leaves (unsafe functions and blocks), you cannot work upward to find which enclosing function attested their safety.
+
+A language falls into one of two camps:
+
+- TBFs are a grep target, like `rg "@trusted"`.
+- TBFs must be discovered by the compiler or an awkward and likely inaccurate script.
 
 We can use grep as our proxy for sound language design, in the same way I've used [`jq` as the arbiter of sound schema design](https://github.com/dotnet/designs/blob/main/accepted/2025/cve-schema/cve_schema.md#design-philosophy). If a safety-relevant question can't be answered by grep, the language design has failed at self-description.
 
