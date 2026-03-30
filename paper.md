@@ -549,10 +549,10 @@ We score each language on three dimensions — **discovery** (can you find the c
 | Rust | **C** | Unsafe declarations (`unsafe fn`) are perfectly discoverable. Caller contract and implementation-only scoping, enforcement via errors. Trust boundaries require an 80-line awk script. No demerits. |
 | C# + `unsafe` keyword | **D** | The [`unsafe` proposal](https://github.com/dotnet/csharplang/pull/10058): `unsafe` on a method means caller-unsafe. Caller contract and implementation-only scoping, enforcement via errors. One demerit: `unsafe` still mixes methods and blocks. No trust boundary marker. |
 | Swift | **D** | Unsafe declarations (`@unsafe`) require `-A 1` context. Trust boundaries require a script. Caller contract and implementation-only scoping, but audit-based (warnings, not errors) — demerit for source-distributed non-enforcement. |
-| C# + `RequiresUnsafe` | **F** | The [`RequiresUnsafe` proposal](https://github.com/dotnet/csharplang/blob/main/proposals/unsafe-evolution.md): `[RequiresUnsafe]` attribute for caller-unsafe. Four demerits: `unsafe` mixes methods and blocks, `RequiresUnsafe` mixes true and false, non-standard terminology, and duplicate marking. No trust boundary marker. |
-| C# (current) | **F** | Unsafe declarations are discoverable but ambiguous. Trust boundaries require a script. No auditing design. Four demerits: `unsafe` mixes methods and blocks, audit-based model with binary distribution (×3). |
+| C# + `RequiresUnsafe` | **F** | The [`RequiresUnsafe` proposal](https://github.com/dotnet/csharplang/blob/main/proposals/unsafe-evolution.md): `[RequiresUnsafe]` attribute for caller-unsafe. Five demerits: `unsafe` mixes methods/blocks/types, `unsafe class` implicit members, `RequiresUnsafe` mixes true/false, non-standard terminology, and duplicate marking. No trust boundary marker. |
+| C# (current) | **F** | Unsafe declarations are discoverable but ambiguous. Trust boundaries require a script. No auditing design. Five demerits: `unsafe` mixes methods/blocks/types, `unsafe class` implicit members, audit-based model with binary distribution (×3). |
 
-The two active C# proposals — `unsafe` keyword and `[RequiresUnsafe]` — land at D and F respectively without `trusted`. The `trusted` keyword is the differentiator that separates C# (optimal) from the pack — it's worth 9 points. The `unsafe` vs `RequiresUnsafe` debate is worth 3 points in demerits, driven by observable grep workflow problems rather than syntax preference.
+The two active C# proposals — `unsafe` keyword and `[RequiresUnsafe]` — land at D and F respectively without `trusted`. The `trusted` keyword is the differentiator that separates C# (optimal) from the pack — it's worth 9 points. The `unsafe` vs `RequiresUnsafe` debate is worth 4 points in demerits, driven by observable grep workflow problems rather than syntax preference.
 
 C# (optimal) represents the `unsafe` keyword proposal plus `trusted`. The distance from **F** to **A** is one keyword (`trusted`) and two semantic commitments (caller contract, implementation-only interior). All have prior art — D has the keyword, Rust and Swift have the semantics.
 
@@ -766,7 +766,9 @@ This matters for review scoping. If interior unsafe leaks to callers, every call
 
 A grep ambiguity demerit applies when a single grep pattern returns results with mixed safety roles — the auditor cannot determine from the grep output alone what kind of hit they're looking at. Each distinct source of ambiguity is an independent -1 demerit. Ambiguity is additive in the same way that the grep difficulty scale is — each source compounds the auditor's inference burden.
 
-**`unsafe` mixes methods and blocks (-1).** Observable: run `rg "unsafe"` on a C# codebase. The results include `unsafe void M()` (method signatures), `unsafe { }` (blocks), `unsafe class` (type declarations), and `unsafe` fields. The auditor cannot determine the safety role of a hit without reading the surrounding context. Applies to: C# (current), C# + `RequiresUnsafe`.
+**`unsafe` mixes methods, blocks, and types (-1).** Observable: run `rg "unsafe"` on a C# codebase. The results include `unsafe void M()` (method signatures), `unsafe { }` (blocks), `unsafe class` (type declarations), and `unsafe` fields. The auditor cannot determine the safety role of a hit without reading the surrounding context. Applies to: C# (current), C# + `unsafe` keyword, C# + `RequiresUnsafe`, C# (optimal).
+
+**`unsafe class` makes members implicitly unsafe (-1).** Observable: run `rg "unsafe"` and note that methods inside an `unsafe class` have no per-method `unsafe` marker. They are invisible to grep — a false negative, not a false positive. The auditor's grep results are silently incomplete. See [`scripts/find-csharp-unsafe-methods.sh`](scripts/find-csharp-unsafe-methods.sh) for examples. Applies to: C# (current), C# + `unsafe` keyword, C# + `RequiresUnsafe`. Does not apply to C# (optimal) — under that design, methods inside an `unsafe class` that present a safe surface must be individually marked `trusted`.
 
 **`RequiresUnsafe` mixes true and false (-1).** Observable: in a codebase with both `[RequiresUnsafe]` (caller-unsafe) and `[RequiresUnsafe(false)]` (trust boundary), run `rg "RequiresUnsafe"`. Both roles appear in the same result set. To separate them, the auditor must use exclusion logic (`grep -v "false"`) and account for the bare `[RequiresUnsafe]` (default true) vs explicit `[RequiresUnsafe(true)]` — a ternary value encoded in a single attribute name. Applies to: C# + `RequiresUnsafe`.
 
@@ -808,13 +810,14 @@ Observable: under the `[RequiresUnsafe]` attribute approach, run `rg "RequiresUn
 
 | Condition | D | Rust | Swift | C# (current) | C# + `unsafe` keyword | C# + `RequiresUnsafe` | C# (optimal) |
 |-----------|---|------|-------|---------------|------------------------|------------------------|---------------|
-| `unsafe` mixes methods and blocks | — | — | — | -1 | -1 | -1 | -1 |
+| `unsafe` mixes methods, blocks, and types | — | — | — | -1 | -1 | -1 | -1 |
+| `unsafe class` makes members implicitly unsafe | — | — | — | -1 | — | -1 | — |
 | `RequiresUnsafe` mixes true and false | — | — | — | — | — | -1 | — |
 | Audit-based, source-delivered | — | — | -1 | — | — | — | — |
 | Audit-based, binary-delivered | — | — | — | -3 | — | — | — |
 | Non-standard terminology | — | — | — | — | — | -1 | — |
 | Duplicate marking | — | — | — | — | — | -1 | — |
-| **Total demerits** | **0** | **0** | **-1** | **-4** | **-1** | **-4** | **-1** |
+| **Total demerits** | **0** | **0** | **-1** | **-5** | **-1** | **-5** | **-1** |
 
 ### Combined results
 
@@ -827,8 +830,8 @@ Base possible: 18 (discovery) + 2 (auditing) = **20**
 | Rust | 9 | 2 | 0 | 11 | 55.0% | **C** |
 | C# + `unsafe` keyword | 7.5 | 2 | -1 | 8.5 | 42.5% | **D** |
 | Swift | 7.5 | 2 | -1 | 8.5 | 42.5% | **D** |
-| C# + `RequiresUnsafe` | 7.5 | 2 | -4 | 5.5 | 27.5% | **F** |
-| C# (current) | 7.5 | 0 | -4 | 3.5 | 17.5% | **F** |
+| C# + `RequiresUnsafe` | 7.5 | 2 | -5 | 4.5 | 22.5% | **F** |
+| C# (current) | 7.5 | 0 | -5 | 2.5 | 12.5% | **F** |
 
 ### Grade boundaries
 
