@@ -730,8 +730,7 @@ Each discovery task is scored on a 0–2 scale based on the grep difficulty requ
 | Method | Score | Rationale |
 |--------|-------|-----------|
 | Clean grep | 2 | Easy grep, always accurate |
-| Grep with regex | 1.5 | Harder grep, always accurate |
-| Grep with context flag (`-A 1`) | 1 | Semi-accurate but useful grep — results require visual pairing across lines |
+| Grep with pattern knowledge | 1.5 | Harder grep (regex, `-A 1`, multiline), always accurate |
 | Script (awk/parser) | 0.5 | Approximation with known false positives, not authoritative |
 | Not possible / invisible | 0 | Requires AST/LSP or information doesn't exist in the source |
 
@@ -794,8 +793,8 @@ Observable: under the `[RequiresUnsafe]` attribute approach, run `rg "RequiresUn
 | Task | Weight | D | Rust | Swift | C# (current) | C# + `unsafe` keyword | C# + `RequiresUnsafe` | C# (optimal) |
 |------|--------|---|------|-------|---------------|------------------------|------------------------|---------------|
 | Find trust boundaries | 6 | 2 | 0.5 | 0.5 | 0.5 | 0.5 | 0.5 | 2 |
-| Find unsafe declarations | 3 | 0 | 2 | 1 | 1.5 | 1.5 | 1.5 | 1.5 |
-| **Discovery subtotal** | | **12** | **9** | **6** | **7.5** | **7.5** | **7.5** | **16.5** |
+| Find unsafe declarations | 3 | 0 | 2 | 1.5 | 1.5 | 1.5 | 1.5 | 1.5 |
+| **Discovery subtotal** | | **12** | **9** | **7.5** | **7.5** | **7.5** | **7.5** | **16.5** |
 
 **Auditing design** (max 2):
 
@@ -827,7 +826,7 @@ Base possible: 18 (discovery) + 2 (auditing) = **20**
 | D | 12 | 2 | 0 | 14 | 70.0% | **B** |
 | Rust | 9 | 2 | 0 | 11 | 55.0% | **C** |
 | C# + `unsafe` keyword | 7.5 | 2 | -1 | 8.5 | 42.5% | **D** |
-| Swift | 6 | 2 | -1 | 7 | 35.0% | **D** |
+| Swift | 7.5 | 2 | -1 | 8.5 | 42.5% | **D** |
 | C# + `RequiresUnsafe` | 7.5 | 2 | -4 | 5.5 | 27.5% | **F** |
 | C# (current) | 7.5 | 0 | -4 | 3.5 | 17.5% | **F** |
 
