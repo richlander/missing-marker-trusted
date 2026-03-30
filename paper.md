@@ -588,6 +588,8 @@ Discovery has three equally-weighted dimensions: trust boundary discovery, unsaf
 
 The two active C# proposals — `unsafe` keyword and `[RequiresUnsafe]` — land at 50.0% and 30.0% respectively without `trusted`. Adding `trusted` lifts C# to 72.5% — competitive with Rust — and the `unsafe` vs `RequiresUnsafe` debate is worth 4 points in demerits, driven by observable grep workflow problems rather than syntax preference.
 
+Note: `RequiresUnsafe` (30.0%) scores below C# current (35.0%). This is not a claim that it makes safety worse — it adds real structural improvements (caller contract, implementation-only scoping). But the attribute form introduces enough grep noise (double negative, true/false mixing, duplicate marking) to offset those gains. The `unsafe` keyword proposal gets the same structural improvements without the noise, which is why it scores 50.0%.
+
 C# (optimal) represents the mature state: `unsafe` keyword + `trusted` keyword + enforcement on by default (no longer opt-in). Rust leads today at 77.5% because its borrow checker and unsafe propagation have always been default-on. The distance from C# + `unsafe` + `trusted` (72.5%) to C# (optimal) (87.5%) is model maturity — the same path Rust has already completed. The remaining gap to 100% is the inherent ambiguity of `unsafe` serving as both method modifier and block keyword — a cost C# pays for backward compatibility.
 
 ## Design Tradeoffs
