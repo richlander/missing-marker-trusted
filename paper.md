@@ -440,7 +440,7 @@ public subscript() -> T {
   }
 ```
 
-`unsafeAddress` and `unsafeMutableAddress` are accessors that return raw pointers from a subscript (Swift's equivalent of a C# indexer) — zero-copy performance but with no bounds checking or lifetime tracking. The caller writes `box[]` with no indication that a raw pointer dereference is happening underneath. They look like identifiers, not safety keywords. An auditor grepping for `unsafe` gets noise from them; an auditor not grepping for them misses fundamentally unsafe accessors. C# solves the same zero-copy access problem with `ref` returns, which stay within the safe type system.
+`unsafeAddress` and `unsafeMutableAddress` are accessors that return raw pointers from a subscript (Swift's equivalent of a C# indexer) — zero-copy performance but with no bounds checking or lifetime tracking. The caller writes `box[]` with no indication that a raw pointer dereference is happening underneath. It's basically unsafe operator overloading in C# parlance. They look like identifiers, not safety keywords. An auditor grepping for `unsafe` gets noise from them; an auditor not grepping for them misses fundamentally unsafe accessors. C# solves the same zero-copy access problem with `ref` returns, which stay within the safe type system.
 
 #### Design tradeoff
 
@@ -470,7 +470,7 @@ StrictMemorySafety warnings:      12,526 across 319 files
 
 The compiler mode is comprehensive — it finds every expression that uses unsafe constructs but isn't marked with `unsafe`. This is authoritative in a way grep cannot be (no false negatives from templates, type inference, or implicit unsafety). However, the 12,526 warnings identify unsafe *usage sites*, not trust boundaries. The output tells you where unsafe code is used but not which functions attest that the usage is safe. An auditor reviewing these warnings would need to manually determine which enclosing function is the trust boundary — the same inference problem that grep has, just with a more complete starting list.
 
-The compiler audit tool and grep serve the same side of the ledger: inventorying unsafe code. Neither answers the trust boundary question. It's still a search for the roots from the leaves.
+The compiler audit tool and grep serve the same side of the ledger: inventorying unsafe code. Neither answers the trust boundary question. Finding the 118 trust boundary functions still requires the 110-line awk script — even with the compiler's authoritative unsafe inventory, there is no way to go from leaves to roots without a parser.
 
 ### C# (Current State)
 
