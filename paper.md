@@ -12,12 +12,12 @@ Source: https://github.com/dotnet/designs/blob/main/accepted/2025/memory-safety/
 
 That's a compelling vision. Our ambition is that agents generate most C# code going forward and that they can self-drive migration to our new memory safety model over the next several years. The question is what "final authority on safety" means. It is a heavy lift in the text. It's describing a model that is lossless in intent and producing errors where the code is found to be wrong or subject to ambiguity. Removing `unsafe` (establishing the aforementioned absence) is an example of dangerous ambiguity. Lossy designs are an invitation for Jia Tan ([xz fame](https://en.wikipedia.org/wiki/XZ_Utils_backdoor)) to come visit.
 
-AI models will get better. Their capacity to fundamentally self-drive security work is a function of the language not AI innovation. Handcuffing agents with string language requirements will objectively produce better and more trustworthy results. If you follow Terence Tao, you will know that he has come to the same conclusion with mathematics research and the Lean proof language. He wants it to be both possible and maintstream for large groups of mathemticians and agents to work together to produce compelling and trusted proofs. The fact that C# is not a proof language is not critical to the point.
+AI models will get better. Their capacity to fundamentally self-drive security work is a function of the language not AI innovation. Handcuffing agents with stringent language requirements will objectively produce better and more trustworthy results. If you follow Terence Tao, you will know that he has come to the same conclusion with mathematics research and the Lean proof language. He wants it to be both possible and maintstream for large groups of mathematicians and agents to work together to produce compelling and trusted proofs. The fact that C# is not a proof language is not critical to the point.
 
 My overall take on a memory safety system:
 
 - The value is enforcement and auditing, both automatic and manual. It is inherently a collaboration between a deterministic tool (compiler or analyzer) and a semantic mind (human or agent).
-- It should increase confidence while reducing (or at least focusing) manual effort, by simplying workflows and limiting the search space.
+- It should increase confidence while reducing (or at least focusing) manual effort, by simplifying workflows and limiting the search space.
 - Agent-assisted code migration and maintenance is a core part of our vision. We need to cater to that with a specific plan on how to durably deliver on it.
 - The success (and cost) of the system depends on the degree to which it relies on inference in the semantic domain. High inference means low clarity means low confidence means high cost.
 - We can quite easily test the cost of inference using grep as a proxy.
@@ -38,9 +38,25 @@ Relevant design specs:
 
 ## The Three-Layer Safety Model
 
-D offers a familiar three-level safety model. It resolves most of the problems that we've been discussing.
+A three-layer safety model — safe, trust boundary, unsafe — is a recurring pattern in platform design. .NET pioneered it with Silverlight. D independently arrived at the same architecture. Both validate the approach.
+
+### The Silverlight Security Transparency Precedent
+
+.NET already solved this problem once. The [Silverlight security transparency model](https://learn.microsoft.com/previous-versions/dotnet/framework/code-access-security/security-transparent-code) had three layers:
+
+- Transparent
+- Safe Critical
+- Security Critical
+
+"Transparent" code could only call other transparent or "safe critical" code. "Safe critical" and "security critical" code had unencumbered access to privileged operations — the difference was caller contract, not capability. "Safe critical" code was the trust boundary: it could be called by transparent code and took on the obligation of validating inputs and presenting a safe surface. The model made auditing straightforward with clear markings throughout.
+
+You can imagine asking an agent to review all "safe critical" methods. It is trivial for the agent to find them. This is a definitional characteristic of a well-designed safety model.
+
+The Silverlight model was abandoned when Silverlight was abandoned — not because the model was flawed. The design was sound. The lesson: a three-layer system with explicit trust boundaries is a validated .NET pattern. We should reclaim it.
 
 ### D's Explicit Trust Boundaries
+
+D independently arrived at the same design.
 
 > D is a system programming language. D has a memory-safe subset.
 
@@ -55,12 +71,20 @@ D has three safety tiers:
 That's a pyramid. Reasoning from the bottom:
 
 - `@system` functions are considered unsafe. Undecorated functions are implicitly `@system`.
-- `@trusted` functions attest to presenting a safe fascade for safe callers, while using `@system` functions for their implementation.
+- `@trusted` functions attest to presenting a safe facade for safe callers, while using `@system` functions for their implementation.
 - `@safe` functions operate within the safe compiler-enforced subset and may only call `@safe` and `@trusted` functions.
 
-This approach appears to be the gold standard lossless safety model, enabling high-productivity and high-confidence software auditing workflows.
+The mapping to Silverlight is direct:
 
-All functions must be sound at all three layers. The `@system` code needs to written to be correct and safe after safety obligations are discharaged by a `@trusted` caller. Sound `@system` and `@trusted` code is the responsibility of the developer, not the compiler. That's true of Rust too.
+| D | Silverlight | Role |
+|---|-------------|------|
+| `@safe` | Transparent | Safe subset, restricted callees |
+| `@trusted` | Safe Critical | Trust boundary, attests safety to callers; unrestricted, unsafe operations |
+| `@system` | Security Critical | Unrestricted, unsafe operations |
+
+This is the most complete lossless safety model in production today, enabling high-confidence software auditing workflows.
+
+All functions must be sound at all three layers. The `@system` code needs to be written to be correct and safe after safety obligations are discharged by a `@trusted` caller. Sound `@system` and `@trusted` code is the responsibility of the developer, not the compiler. That's true of Rust too.
 
 Note: The opt-in-to-safe approach is sensible for a systems language. That may seem strange or awkward for C#-oriented readers.
 
@@ -70,37 +94,11 @@ The D community's guidance confirms that `@trusted` is where the review budget g
 
 D developers can rely on grep to find `@trusted` functions. It is very powerful that grep _always_ finds the functions that need to be audited first. There is no need to look at the method implementation to determine the color of the method, or rely on complex tools that may or may not be available.
 
-### The Silverlight Security Transparency Parallel
-
-This model is quite familar bringing back memories from Silverlight.
-
-Silverlight security model layers:
-
-- Transparent
-- Safe Critical
-- Security Critical
-
-These are from our [security transparency model from Silverlight](https://learn.microsoft.com/previous-versions/dotnet/framework/code-access-security/security-transparent-code). I realized that D recreated the same thing, frankly with better names.
-
-Note: There is no implicit suggestion in this paper that D "copied" the Silverlight model. The D model is in use today and the Silverlight one is not. End of story.
-
-That Silverlight model had three layers with clear markings throughout, making auditing straightforward. "Transparent" code could only call other transparent or "safe critical" code. "Safe critical" and "security critical" code had unencumbered access to privileged operations — the difference was caller contract, not capability. "Safe critical" code was the trust boundary: it could be called by transparent code and took on the obligation of validating inputs and presenting a safe surface.
-
-The obvious mapping:
-
-| D | Silverlight | Role |
-|---|-------------|------|
-| `@safe` | Transparent | Safe subset, restricted callees |
-| `@trusted` | Safe Critical | Trust boundary, attests safety to callers; unrestricted, unsafe operations |
-| `@system` | Security Critical | Unrestricted, unsafe operations |
-
-The Silverlight model was abandoned when Silverlight was abandoned — not because the model was flawed. The design was sound. We already solved this problem once. The lesson is that a three-layer system with explicit trust boundaries is a recurring, validated pattern. We should reclaim it.
-
-You can imagine asking an agent to review all "safe critical" methods. It is trivial for the agent to find them. This is a definitional characteristic of a well-designed safety model.
-
 ## The case for Trusted Boundary Functions (TBFs) as `safe`
 
-My initial thinking -- in C# parlance -- was to mark TBFs `safe` since that's the opposite of `unsafe` and the intent is to provide a safe wrapper. However, these functions are in no way the opposite of unsafe. They contain and rely on unsafe code with no help from the compiler to offer a safe facade.
+My initial thinking -- in C# parlance -- was to mark TBFs `safe` since that's the opposite of `unsafe` and the intent is to provide a safe wrapper. The strongest argument for `safe` is that it's the natural antonym — C# developers expect it as the counterpart to `unsafe`, and Rust's RFC 3484 introduced `safe` as a contextual keyword in extern blocks for exactly this pairing.
+
+However, these functions are in no way the opposite of unsafe. They contain and rely on unsafe code with no help from the compiler to offer a safe facade.
 
 TBFs handle unsafe currency and must do so soundly. They only differ in that they have the special character that they are considered safe to call by developers who typically have no basis or intent of applying safety scrutiny. TBFs are unsafe code that do double duty. It's that single bit and what it represents again.
 
@@ -111,7 +109,7 @@ I was thinking about terms. The obvious terms are:
 - caller-unsafe
 - caller-safe
 
-These terms are confusingly asymetric. They can be expanded to prose this way:
+These terms are confusingly asymmetric. They can be expanded to prose this way:
 
 - caller-unsafe: "can only be called by unsafe callers"
 - caller-safe: "can (specifically) be called by safe callers (among others)" or put more directly and truthfully "the only unsafe methods that safe callers can call"
@@ -199,23 +197,23 @@ Let's ask it for insight.
 
 ![trusted keyword tokens](https://github.com/user-attachments/assets/ca0fde0d-52d4-49f5-b563-da7b5d5c1cf8)
 
-`RequiredUnsafeAttribute` tokens:
+`RequiresUnsafeAttribute` tokens:
 
-![RequiredUnsafe attribute tokens](https://github.com/user-attachments/assets/1f9c97aa-a7f3-436d-9896-e9d561a679a4)
+![RequiresUnsafe attribute tokens](https://github.com/user-attachments/assets/1f9c97aa-a7f3-436d-9896-e9d561a679a4)
 
-`RequiredUnsafeAttribute(true)` tokens:
+`RequiresUnsafeAttribute(true)` tokens:
 
-![RequiredUnsafe(true) attribute tokens](https://github.com/user-attachments/assets/31914393-6aee-446c-a540-fc25b583372e)
+![RequiresUnsafe(true) attribute tokens](https://github.com/user-attachments/assets/31914393-6aee-446c-a540-fc25b583372e)
 
-`RequiredUnsafeAttribute(true)` tokens:
+`RequiresUnsafeAttribute(false)` tokens:
 
-![RequiredUnsafe(false) attribute tokens](https://github.com/user-attachments/assets/ab90356e-9425-498d-a31d-24d99f6df7b9)
+![RequiresUnsafe(false) attribute tokens](https://github.com/user-attachments/assets/ab90356e-9425-498d-a31d-24d99f6df7b9)
 
 Conclusion: non-compound, non-double-negative, terms are better.
 
-I spent some time try to develop a good mental model of what's actualy going on here. If a human or agent is using `grep`, the distinction between these representations isn't critical. Take the few seconds to construct the grep query and move on. `grep` does its thing and it doesn't care. The semantic mind can then interpret the results. A-OK. The rub is when the semantic mind is asked to directly review code, in a PR, an editor, or a context window. In that case, the semantic mind is responsible for the role of `grep` and the higher-level analysis. That's when `RequiresUnsafe` is objectively the weaker choice.
+I spent some time trying to develop a good mental model of what's actually going on here. If a human or agent is using `grep`, the distinction between these representations isn't critical. Take the few seconds to construct the grep query and move on. `grep` does its thing and it doesn't care. The semantic mind can then interpret the results. A-OK. The rub is when the semantic mind is asked to directly review code, in a PR, an editor, or a context window. In that case, the semantic mind is responsible for the role of `grep` and the higher-level analysis. That's when `RequiresUnsafe` is objectively the weaker choice.
 
-Attention is the mechanism or layer where tokens consider how they relate. Clean tokens can spend their attention energy (and it really is energy) on useful work. Messy tokens have to spend the same energy on reconstructing intent. It's a fixed budget either way. It's likely the case that messy tokens result in additional thinking passes, which doesn't guarantee that they eventually match the same productive result.
+Attention is the mechanism where a model resolves how tokens relate — a fixed computational budget per layer. When the representation is clean — `trusted` vs `unsafe` — that budget goes to the safety question. When the representation encodes a double negative — `RequiresUnsafe(false)` — some of that budget goes to disambiguating the term itself. Ambiguous representations also tend to require additional reasoning passes, each consuming real energy. The cost is cumulative across every review. We can conclude that languages with less inference are cheaper to review.
 
 ## Measuring Discoverability: The Grep Test
 
@@ -731,19 +729,13 @@ In "absence means safe" designs, there is no attestation to find. An auditor can
 
 ### Defense in depth: the xz backdoor lesson
 
-The introduction references "Jia Tan territory" — the [xz/liblzma backdoor](https://en.wikipedia.org/wiki/XZ_Utils_backdoor) discovered in 2024, where a contributor using the name "Jia Tan" spent years building trust and then introduced a backdoor into the xz compression library through diffs that didn't attract scrutiny. There are three tiers of defense against this kind of change:
+The [xz/liblzma backdoor](https://en.wikipedia.org/wiki/XZ_Utils_backdoor) illustrates why enforcement matters. There are three tiers of defense against malicious changes:
 
-1. **Compiler errors** — the change cannot land without being addressed. The author must explicitly modify the safety annotation. This is the gold standard.
-2. **Tool warnings** (valgrind, analyzers, etc.) — the change can land, but produces signals after the fact. Helpful, but the attacker can volunteer to "fix" the warnings.
-3. **Diff review** — the change is visible in version control but has no structural salience. Requires a reviewer to notice and understand the significance. This is the weakest defense.
+1. **Compiler errors** — the change cannot land without explicitly modifying the safety annotation. The strongest defense.
+2. **Tool warnings** (valgrind, analyzers, etc.) — the change can land, but produces signals after the fact. An attacker with commit access can volunteer to "fix" the warnings.
+3. **Diff review** — the change is visible in version control but has no structural salience. Requires a reviewer to notice the significance. The weakest defense.
 
-The xz backdoor is instructive because it engaged all three tiers:
-
-- **Tier 3 (diff review)** — the malicious changes existed in version control. Reviewers missed them. The diffs were constructed to be structurally unremarkable.
-- **Tier 2 (tool warnings)** — the backdoor caused valgrind errors due to stack layout mismatches. Valgrind detected the problem. But Jia Tan [claimed it was a GCC bug](https://github.com/tukaani-project/xz/commit/82ecc538193b380a21622aea02b0ba078e7ade92), submitted a misdirecting "fix," and then quietly updated the malicious test files the next day. He had also preemptively [disabled ifunc in oss-fuzz builds](https://github.com/google/oss-fuzz/pull/10667) months earlier to prevent the fuzzer from catching the backdoor. The attacker actively subverted the tier 2 tooling because he had commit access and the warnings were advisory.
-- **Tier 1 (compiler errors)** — no compiler enforcement existed for the affected code path. The backdoor was never subjected to this tier.
-
-The key distinction between tier 2 and tier 1 is that advisory warnings can be "fixed" by an attacker with commit access. Compiler errors cannot be quietly absorbed — they require an explicit change to the safety model itself.
+The xz attacker operated at tiers 2 and 3: the diffs were structurally unremarkable, and when valgrind flagged stack layout mismatches, the attacker [misdirected the fix](https://github.com/tukaani-project/xz/commit/82ecc538193b380a21622aea02b0ba078e7ade92) and [disabled oss-fuzz detection](https://github.com/google/oss-fuzz/pull/10667). Advisory warnings were subverted because they were advisory. Compiler errors cannot be quietly absorbed — they require an explicit change to the safety model itself.
 
 A `trusted` design operates at tier 1. Removing `trusted` from a method with interior `unsafe` blocks is a compiler error. Removing the `unsafe` blocks from a `trusted` method is a compiler warning (unnecessary attestation). The attacker would have to explicitly change the safety annotations, producing a structurally remarkable diff that names the safety model directly — not a diff that looks like routine cleanup.
 
