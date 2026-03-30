@@ -151,19 +151,14 @@ All unmarked methods are implicitly safe. The three-layer model is exhaustive an
 
 **Design details:** As a contextual keyword modifier, `trusted` occupies the same syntactic position as `unsafe` and inherits its design answers for interfaces, virtual methods, async methods, and delegates. If `unsafe` is valid on a method signature, `trusted` is valid there too — they are complementary markers in the same design space. Methods inside an `unsafe class` that present a safe surface must use `trusted` explicitly — eliminating the "implicit unsafe type" audit gap. Interior lambdas and local functions are covered by the enclosing `trusted` method's attestation, matching D's `@trusted` model.
 
-**Migration path:** Like all the proposals in this space, opting in is a breaking change that requires work to compile without errors — the difference is degree, not kind.
+**Migration and workflow:** Like all the proposals in this space, opting in is a breaking change that requires work to compile without errors — the difference is degree, not kind.
 
 1. Migration tooling scans for methods with interior `unsafe` blocks and marks them `unsafe` conservatively.
-2. Developers triage each method: mark as `trusted` (attests safety to callers) or leave as `unsafe` (propagates to callers).
+2. Developers triage each method: mark as `trusted` (attests safety to callers) or leave as `unsafe` (propagates to callers). Methods can be temporarily marked as `trusted` with accompanying comments that describe that auditing is needed.
 3. The codebase compiles cleanly — every trust boundary is explicitly marked, enforced by errors.
+4. Binaries built this way and distributed via NuGet are marked as "Memory Safety v2" giving consumers a new signal on security posture.
 
-### Proposed workflow
-
-- A tool marks all methods with interior calls to unsafe methods (interior unsafe blocks or not) as `unsafe`.
-- Developers either mark `unsafe` methods as `trusted` or address errors presented by downstream callers.
-- Methods can be temporarily marked as `trusted` with accompanying comments that describe that auditing is needed.
-- It is easy to track transitions between `unsafe` and `trusted` with git, less so when one side of the diff is an empty string.
-- AI agents can be asked to periodically review the safety obligations of all `trusted` methods, relying on source code and git history as inputs.
+Ongoing, it is easy to track transitions between `unsafe` and `trusted` with git — less so when one side of the diff is an empty string. AI agents can be asked to periodically review the safety obligations of all `trusted` methods, relying on source code and git history as inputs.
 
 This approach is lossless and grep-friendly. It preserves the three-layer model while improving on D: trust boundaries are exhaustive (safe-first default) and both `trusted` and `unsafe` are grep-discoverable (D's `@system` is not). Safe code requires zero safety-model scrutiny — the compiler has verified it by construction.
 
