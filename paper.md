@@ -556,136 +556,6 @@ The two active C# proposals — `unsafe` keyword and `[RequiresUnsafe]` — land
 
 C# (optimal) represents the `unsafe` keyword proposal plus `trusted`. The distance from **F** to **A** is one keyword (`trusted`) and two semantic commitments (caller contract, implementation-only interior). All have prior art — D has the keyword, Rust and Swift have the semantics.
 
-## The `unsafe` Keyword Lineage and Trust Boundary Gap
-
-The trust boundary gap has discussion and productization to support it. Rust has engaged with it through [RFC 2585](https://rust-lang.github.io/rfcs/2585-unsafe-block-in-unsafe-fn.html) (separating "unsafe to call" from "body does unsafe things"), [RFC 3484](https://rust-lang.github.io/rfcs/3484-unsafe-extern-blocks.html) (introducing `safe` as a contextual keyword in extern blocks — someone [asked](https://github.com/rust-lang/rfcs/pull/3484) "why not `trusted`?"), [RFC 3768](https://github.com/rust-lang/rfcs/pull/3768) (safe blocks, closed), and [documentation conventions](https://internals.rust-lang.org/t/pre-rfc-rust-safety-standard/23963) (`// SAFETY:` comments). Swift's SE-0458 marks unsafe code but not trust boundaries. D solved it at the language level with `@trusted` from the start.
-
-The `unsafe` keyword — for modern mainline languages — starts with C#. C# 1.0 (2001) introduced it as a compiler-enforced keyword, the first mainstream language to give the safe/unsafe boundary a syntactic marker. D (2010) built a complete three-layer model with `@safe`, `@trusted`, and `@system` — the only language to address trust boundaries from the start. Rust (2015) extended C#'s `unsafe` keyword: `unsafe fn` as a caller contract, `unsafe {}` as scoped interior unsafe. Swift (2024–2025) went further with `@unsafe` as an attribute and `unsafe` as an expression prefix. The language that started the keyword can be the first to complete the model.
-
-## Lossless Attestations
-
-"Lossless" means every safety attestation is recorded in code and source control. There is never a compiler-accepted state where information is lost. `git blame` finds who attested safety and when. `grep` inventories every attestation. Code review tools can flag changes to attested methods for re-review.
-
-In "absence means safe" designs, there is no attestation to find. An auditor cannot distinguish "reviewed and confirmed safe" from "never reviewed." When a safety-critical bug is found, `git blame` answers the question in a lossless system. In an inference-based system, there's nothing to find.
-
-### Defense in depth: the xz backdoor lesson
-
-The introduction references "Jia Tan territory" — the [xz/liblzma backdoor](https://en.wikipedia.org/wiki/XZ_Utils_backdoor) discovered in 2024, where a contributor using the name "Jia Tan" spent years building trust and then introduced a backdoor into the xz compression library through diffs that didn't attract scrutiny. There are three tiers of defense against this kind of change:
-
-1. **Compiler errors** — the change cannot land without being addressed. The author must explicitly modify the safety annotation. This is the gold standard.
-2. **Tool warnings** (valgrind, analyzers, etc.) — the change can land, but produces signals after the fact. Helpful, but the attacker can volunteer to "fix" the warnings.
-3. **Diff review** — the change is visible in version control but has no structural salience. Requires a reviewer to notice and understand the significance. This is the weakest defense.
-
-The xz backdoor is instructive because it engaged all three tiers:
-
-- **Tier 3 (diff review)** — the malicious changes existed in version control. Reviewers missed them. The diffs were constructed to be structurally unremarkable.
-- **Tier 2 (tool warnings)** — the backdoor caused valgrind errors due to stack layout mismatches. Valgrind detected the problem. But Jia Tan [claimed it was a GCC bug](https://github.com/tukaani-project/xz/commit/82ecc538193b380a21622aea02b0ba078e7ade92), submitted a misdirecting "fix," and then quietly updated the malicious test files the next day. He had also preemptively [disabled ifunc in oss-fuzz builds](https://github.com/google/oss-fuzz/pull/10667) months earlier to prevent the fuzzer from catching the backdoor. The attacker actively subverted the tier 2 tooling because he had commit access and the warnings were advisory.
-- **Tier 1 (compiler errors)** — no compiler enforcement existed for the affected code path. The backdoor was never subjected to this tier.
-
-The key distinction between tier 2 and tier 1 is that advisory warnings can be "fixed" by an attacker with commit access. Compiler errors cannot be quietly absorbed — they require an explicit change to the safety model itself.
-
-A `trusted` design operates at tier 1. Removing `trusted` from a method with interior `unsafe` blocks is a compiler error. Removing the `unsafe` blocks from a `trusted` method is a compiler warning (unnecessary attestation). The attacker would have to explicitly change the safety annotations, producing a structurally remarkable diff that names the safety model directly — not a diff that looks like routine cleanup.
-
-Lossy designs — where a trust boundary has no marker — operate at tier 3 at best. The diff that removes an `unsafe` block from an unmarked method looks like routine cleanup. There is no compiler error. There is no annotation change in the signature. The safety attestation simply vanishes from the code without any toolchain signal that something important happened.
-
-D's `@trusted` and the proposed C# `trusted` keyword both produce lossless attestations at tier 1. Rust's and Swift's trust boundaries do not.
-
-### Binary distribution raises the bar
-
-The defense tiers interact differently depending on how code is distributed. Rust and Swift are primarily source-distributed — consumers compile from source and see compiler warnings during their own builds. A pragma that suppresses a warning is visible in the source diff. Consumers can audit safety decisions themselves.
-
-C#/.NET is primarily binary-distributed. Consumers get compiled assemblies. Compiler warnings during the library author's build are invisible to consumers. The consumer sees only the result: either the API compiles cleanly against their code or it doesn't. This means **errors are the only defense that reliably reaches consumers**. Warnings are swallowed at build time by the library author and never cross the binary boundary.
-
-This raises the bar for C#: anything that is "just a warning" in the C# world is effectively invisible to the majority of consumers. The design should use errors for safety-critical signals.
-
-Swift faces a related challenge with Apple's own frameworks. During the [SE-0458 discussion](https://forums.swift.org/t/se-0458-opt-in-strict-memory-safety-checking/77274), it was noted that Apple's Combine framework is "written in Swift, but _not_ safe (by Swift 6's standard), and unlikely to become safe nor even acquire `unsafe` annotations." Douglas Gregor acknowledged this as "a hole" in the model. When closed-source, binary-distributed frameworks don't adopt safety annotations, consumers must trust those decisions with no ability to audit or even see the warnings that were (or weren't) produced during the framework's build. The safety model's guarantees stop at the binary boundary.
-
-## Agent-Assisted Maintenance
-
-The [PR feedback](https://github.com/dotnet/csharplang/pull/10058#pullrequestreview-4016744830) states: "High-confidence AI-assisted automation of the migration process flow is a part of the feature design." The inference cost of the safety model directly determines how effectively agents can participate.
-
-A low-inference model enables agents to: inventory trust boundaries (`grep trusted` — complete, no AST required), scope reviews (check each `trusted` method's interior `unsafe` for correctness), detect drift (new `unsafe` blocks in a `trusted` method are flagged for re-review), and assist migration (propose `trusted` or `unsafe` annotations for methods with interior unsafe blocks).
-
-High-inference models force agents to build ASTs or rely on LSPs. This is more expensive, fragile across environments, and harder to validate.
-
-### The LSP doesn't solve this
-
-One might assume that an LSP resolves the discovery problem — that agents with LSP access can simply query for trust boundaries or unsafe functions. They cannot.
-
-The LSP protocol's `workspace/symbol` request filters by name and `SymbolKind` (Function, Method, Class, etc.) — but `SymbolKind` has no variant for unsafe or trusted. `SymbolTag` supports only `Deprecated`. No language has proposed extending the protocol with safety information. Specifically:
-
-- **rust-analyzer** provides [semantic highlighting](https://lukaswirth.dev/posts/semantic-unsafe/) for unsafe operations in an open file, but no workspace-wide inventory. There is no "list all unsafe functions" query.
-- **SourceKit-LSP** cannot filter by `@unsafe`. An [empty workspace/symbol query returns nothing](https://forums.swift.org/t/get-all-workspace-symbols-from-sourcekit-lsp/63433) — you can't even enumerate all symbols.
-- **Roslyn/OmniSharp** has no LSP query for unsafe methods. Roslyn's analyzer API can find `SyntaxKind.UnsafeKeyword` programmatically, but this requires writing a [custom analyzer](https://github.com/dotnet/roslyn-analyzers/issues/7518), not using the LSP.
-- **serve-d** (D) provides workspace symbol search, but since `@trusted` appears in function signatures, an LSP query returns it with the attribute visible — effectively grep with extra steps. D doesn't need the LSP for this.
-
-The LSP can do useful things once you're already looking at the right file — go-to-definition, find-references, call hierarchy. But it cannot *discover* safety-relevant code across a workspace.
-
-### Grep and LSP as complementary tools
-
-Where the LSP *does* add value is as a follow-up to grep. Grep identifies the starting points — `trusted` and `unsafe` methods. An LSP or similar tools can then build call graphs from those starting points, generate mermaid diagrams showing type hierarchy around trust boundaries, and support targeted review scoping. But this workflow only works if grep can find the starting points. A design that makes grep effective makes the entire toolchain — including the LSP — more effective.
-
-### The canonical audit workflow
-
-The safety audit has two activities: **TBF-directed review** (discover trust boundaries, trace into the unsafe code they attest) and **undirected unsafe review** (independently inventory all unsafe code, looking for patterns, known-bad operations, or code that should have been wrapped in a trust boundary but wasn't). TBF-directed review is the hard requirement — it follows the audit graph from roots to leaves. Undirected review is supplementary but important.
-
-D handles the hard requirement perfectly: `rg "@trusted"` finds the roots, and reading the body traces into the `@system` calls. But D can't do undirected review because `@system` is implicit. Rust handles the supplementary activity perfectly: `rg "unsafe fn"` inventories all unsafe code. But Rust can't do TBF-directed review because trust boundaries have no marker. The workflow below uses real code from real repos to demonstrate both activities, with D providing TBF-directed review and Rust providing undirected unsafe review.
-
-**Step 1: Discover trust boundaries** (D, [dlang/phobos](https://github.com/dlang/phobos))
-
-```bash
-$ rg "@trusted" --type d std/array.d
-```
-
-```text
-997:auto uninitializedArray(T, I...)(I sizes) nothrow @trusted
-1041:auto minimallyInitializedArray(T, I...)(I sizes) nothrow @trusted
-1261:CommonType!(T[], U[]) overlap(T, U)(T[] a, U[] b) @trusted
-1549:        @trusted static void moveToRight(T[] arr, size_t gap)
-1863:@trusted
-3596:    this(A arr) @trusted
-3665:    @property inout(T)[] opSlice() inout @trusted
-3920:        void clear() @trusted pure nothrow
-...
-```
-
-One command. The auditor immediately sees `uninitializedArray` — a function that returns an array with uninitialized memory and attests that it's safe to call. The function signature, file, and line number are all present. The auditor can pick this method, read its body, and verify the attestation. No script. No LSP. No inference.
-
-**Step 2: Inspect unsafe blocks** (Rust, [rust-lang/rust](https://github.com/rust-lang/rust) `library/`)
-
-```bash
-$ rg "unsafe fn" --type rust library/alloc/src/alloc.rs -A 10
-```
-
-```text
-pub unsafe fn alloc(layout: Layout) -> *mut u8 {
-    unsafe {
-        // Make sure we don't accidentally allow omitting the allocator shim in
-        // stable code until it is actually stabilized.
-        __rust_no_alloc_shim_is_unstable_v2();
-
-        __rust_alloc(layout.size(), layout.alignment())
-    }
-}
-...
-pub unsafe fn dealloc(ptr: *mut u8, layout: Layout) {
-    unsafe { dealloc_nonnull(NonNull::new_unchecked(ptr), layout) }
-}
-```
-
-One command. The auditor sees the full function: its unsafe contract (`unsafe fn` — callers must ensure valid layout), its interior unsafe operations (`__rust_alloc`, `NonNull::new_unchecked`), and the `// SAFETY:`-style comments. An agent can review this in a single pass and ask for more context only if needed.
-
-**The gap:** D gives you step 1 but not step 2 — `@system` code is implicit, so the auditor can't grep for the unsafe functions that `uninitializedArray` depends on. Rust gives you step 2 but not step 1 — there's no way to grep for which safe functions wrap those unsafe operations. Each language provides half the workflow.
-
-**C# (optimal)** would provide both steps in a single codebase:
-
-```bash
-$ rg "trusted" --type cs                    # Step 1: find trust boundaries
-$ rg "unsafe" --type cs -A 20               # Step 2: inspect unsafe code
-```
-
-The first command finds every trust boundary. The second finds every unsafe operation with body context. Together they give the auditor the complete safety-critical picture: who attested what, and what unsafe operations they're attesting to. No other language in this comparison achieves both.
-
 ## Developing the C# Proposal
 
 A [follow-up PR](https://github.com/dotnet/csharplang/pull/10058) proposes going back to `unsafe`/`safe` keywords, motivated by practical experience annotating dotnet/runtime: 97% of methods with pointers should be `RequiresUnsafe`, making the attribute approach high-churn for little benefit. The PR also introduces `safe` for extern methods that wrap safe native code (e.g., a P/Invoke into a safe Rust function). That PR's goals align with this paper:
@@ -846,3 +716,133 @@ Base possible: 18 (discovery) + 2 (auditing) = **20**
 | C# (current) | — | **F** |
 | + `unsafe` keyword (caller contract) | Auditing design, enforcement | **D** |
 | + `trusted` keyword | Trust boundaries become grep-discoverable | **B+** |
+
+## Appendix: The `unsafe` Keyword Lineage and Trust Boundary Gap
+
+The trust boundary gap has discussion and productization to support it. Rust has engaged with it through [RFC 2585](https://rust-lang.github.io/rfcs/2585-unsafe-block-in-unsafe-fn.html) (separating "unsafe to call" from "body does unsafe things"), [RFC 3484](https://rust-lang.github.io/rfcs/3484-unsafe-extern-blocks.html) (introducing `safe` as a contextual keyword in extern blocks — someone [asked](https://github.com/rust-lang/rfcs/pull/3484) "why not `trusted`?"), [RFC 3768](https://github.com/rust-lang/rfcs/pull/3768) (safe blocks, closed), and [documentation conventions](https://internals.rust-lang.org/t/pre-rfc-rust-safety-standard/23963) (`// SAFETY:` comments). Swift's SE-0458 marks unsafe code but not trust boundaries. D solved it at the language level with `@trusted` from the start.
+
+The `unsafe` keyword — for modern mainline languages — starts with C#. C# 1.0 (2001) introduced it as a compiler-enforced keyword, the first mainstream language to give the safe/unsafe boundary a syntactic marker. D (2010) built a complete three-layer model with `@safe`, `@trusted`, and `@system` — the only language to address trust boundaries from the start. Rust (2015) extended C#'s `unsafe` keyword: `unsafe fn` as a caller contract, `unsafe {}` as scoped interior unsafe. Swift (2024–2025) went further with `@unsafe` as an attribute and `unsafe` as an expression prefix. The language that started the keyword can be the first to complete the model.
+
+## Lossless Attestations
+
+"Lossless" means every safety attestation is recorded in code and source control. There is never a compiler-accepted state where information is lost. `git blame` finds who attested safety and when. `grep` inventories every attestation. Code review tools can flag changes to attested methods for re-review.
+
+In "absence means safe" designs, there is no attestation to find. An auditor cannot distinguish "reviewed and confirmed safe" from "never reviewed." When a safety-critical bug is found, `git blame` answers the question in a lossless system. In an inference-based system, there's nothing to find.
+
+### Defense in depth: the xz backdoor lesson
+
+The introduction references "Jia Tan territory" — the [xz/liblzma backdoor](https://en.wikipedia.org/wiki/XZ_Utils_backdoor) discovered in 2024, where a contributor using the name "Jia Tan" spent years building trust and then introduced a backdoor into the xz compression library through diffs that didn't attract scrutiny. There are three tiers of defense against this kind of change:
+
+1. **Compiler errors** — the change cannot land without being addressed. The author must explicitly modify the safety annotation. This is the gold standard.
+2. **Tool warnings** (valgrind, analyzers, etc.) — the change can land, but produces signals after the fact. Helpful, but the attacker can volunteer to "fix" the warnings.
+3. **Diff review** — the change is visible in version control but has no structural salience. Requires a reviewer to notice and understand the significance. This is the weakest defense.
+
+The xz backdoor is instructive because it engaged all three tiers:
+
+- **Tier 3 (diff review)** — the malicious changes existed in version control. Reviewers missed them. The diffs were constructed to be structurally unremarkable.
+- **Tier 2 (tool warnings)** — the backdoor caused valgrind errors due to stack layout mismatches. Valgrind detected the problem. But Jia Tan [claimed it was a GCC bug](https://github.com/tukaani-project/xz/commit/82ecc538193b380a21622aea02b0ba078e7ade92), submitted a misdirecting "fix," and then quietly updated the malicious test files the next day. He had also preemptively [disabled ifunc in oss-fuzz builds](https://github.com/google/oss-fuzz/pull/10667) months earlier to prevent the fuzzer from catching the backdoor. The attacker actively subverted the tier 2 tooling because he had commit access and the warnings were advisory.
+- **Tier 1 (compiler errors)** — no compiler enforcement existed for the affected code path. The backdoor was never subjected to this tier.
+
+The key distinction between tier 2 and tier 1 is that advisory warnings can be "fixed" by an attacker with commit access. Compiler errors cannot be quietly absorbed — they require an explicit change to the safety model itself.
+
+A `trusted` design operates at tier 1. Removing `trusted` from a method with interior `unsafe` blocks is a compiler error. Removing the `unsafe` blocks from a `trusted` method is a compiler warning (unnecessary attestation). The attacker would have to explicitly change the safety annotations, producing a structurally remarkable diff that names the safety model directly — not a diff that looks like routine cleanup.
+
+Lossy designs — where a trust boundary has no marker — operate at tier 3 at best. The diff that removes an `unsafe` block from an unmarked method looks like routine cleanup. There is no compiler error. There is no annotation change in the signature. The safety attestation simply vanishes from the code without any toolchain signal that something important happened.
+
+D's `@trusted` and the proposed C# `trusted` keyword both produce lossless attestations at tier 1. Rust's and Swift's trust boundaries do not.
+
+### Binary distribution raises the bar
+
+The defense tiers interact differently depending on how code is distributed. Rust and Swift are primarily source-distributed — consumers compile from source and see compiler warnings during their own builds. A pragma that suppresses a warning is visible in the source diff. Consumers can audit safety decisions themselves.
+
+C#/.NET is primarily binary-distributed. Consumers get compiled assemblies. Compiler warnings during the library author's build are invisible to consumers. The consumer sees only the result: either the API compiles cleanly against their code or it doesn't. This means **errors are the only defense that reliably reaches consumers**. Warnings are swallowed at build time by the library author and never cross the binary boundary.
+
+This raises the bar for C#: anything that is "just a warning" in the C# world is effectively invisible to the majority of consumers. The design should use errors for safety-critical signals.
+
+Swift faces a related challenge with Apple's own frameworks. During the [SE-0458 discussion](https://forums.swift.org/t/se-0458-opt-in-strict-memory-safety-checking/77274), it was noted that Apple's Combine framework is "written in Swift, but _not_ safe (by Swift 6's standard), and unlikely to become safe nor even acquire `unsafe` annotations." Douglas Gregor acknowledged this as "a hole" in the model. When closed-source, binary-distributed frameworks don't adopt safety annotations, consumers must trust those decisions with no ability to audit or even see the warnings that were (or weren't) produced during the framework's build. The safety model's guarantees stop at the binary boundary.
+
+## Agent-Assisted Maintenance
+
+The [PR feedback](https://github.com/dotnet/csharplang/pull/10058#pullrequestreview-4016744830) states: "High-confidence AI-assisted automation of the migration process flow is a part of the feature design." The inference cost of the safety model directly determines how effectively agents can participate.
+
+A low-inference model enables agents to: inventory trust boundaries (`grep trusted` — complete, no AST required), scope reviews (check each `trusted` method's interior `unsafe` for correctness), detect drift (new `unsafe` blocks in a `trusted` method are flagged for re-review), and assist migration (propose `trusted` or `unsafe` annotations for methods with interior unsafe blocks).
+
+High-inference models force agents to build ASTs or rely on LSPs. This is more expensive, fragile across environments, and harder to validate.
+
+### The LSP doesn't solve this
+
+One might assume that an LSP resolves the discovery problem — that agents with LSP access can simply query for trust boundaries or unsafe functions. They cannot.
+
+The LSP protocol's `workspace/symbol` request filters by name and `SymbolKind` (Function, Method, Class, etc.) — but `SymbolKind` has no variant for unsafe or trusted. `SymbolTag` supports only `Deprecated`. No language has proposed extending the protocol with safety information. Specifically:
+
+- **rust-analyzer** provides [semantic highlighting](https://lukaswirth.dev/posts/semantic-unsafe/) for unsafe operations in an open file, but no workspace-wide inventory. There is no "list all unsafe functions" query.
+- **SourceKit-LSP** cannot filter by `@unsafe`. An [empty workspace/symbol query returns nothing](https://forums.swift.org/t/get-all-workspace-symbols-from-sourcekit-lsp/63433) — you can't even enumerate all symbols.
+- **Roslyn/OmniSharp** has no LSP query for unsafe methods. Roslyn's analyzer API can find `SyntaxKind.UnsafeKeyword` programmatically, but this requires writing a [custom analyzer](https://github.com/dotnet/roslyn-analyzers/issues/7518), not using the LSP.
+- **serve-d** (D) provides workspace symbol search, but since `@trusted` appears in function signatures, an LSP query returns it with the attribute visible — effectively grep with extra steps. D doesn't need the LSP for this.
+
+The LSP can do useful things once you're already looking at the right file — go-to-definition, find-references, call hierarchy. But it cannot *discover* safety-relevant code across a workspace.
+
+### Grep and LSP as complementary tools
+
+Where the LSP *does* add value is as a follow-up to grep. Grep identifies the starting points — `trusted` and `unsafe` methods. An LSP or similar tools can then build call graphs from those starting points, generate mermaid diagrams showing type hierarchy around trust boundaries, and support targeted review scoping. But this workflow only works if grep can find the starting points. A design that makes grep effective makes the entire toolchain — including the LSP — more effective.
+
+### The canonical audit workflow
+
+The safety audit has two activities: **TBF-directed review** (discover trust boundaries, trace into the unsafe code they attest) and **undirected unsafe review** (independently inventory all unsafe code, looking for patterns, known-bad operations, or code that should have been wrapped in a trust boundary but wasn't). TBF-directed review is the hard requirement — it follows the audit graph from roots to leaves. Undirected review is supplementary but important.
+
+D handles the hard requirement perfectly: `rg "@trusted"` finds the roots, and reading the body traces into the `@system` calls. But D can't do undirected review because `@system` is implicit. Rust handles the supplementary activity perfectly: `rg "unsafe fn"` inventories all unsafe code. But Rust can't do TBF-directed review because trust boundaries have no marker. The workflow below uses real code from real repos to demonstrate both activities, with D providing TBF-directed review and Rust providing undirected unsafe review.
+
+**Step 1: Discover trust boundaries** (D, [dlang/phobos](https://github.com/dlang/phobos))
+
+```bash
+$ rg "@trusted" --type d std/array.d
+```
+
+```text
+997:auto uninitializedArray(T, I...)(I sizes) nothrow @trusted
+1041:auto minimallyInitializedArray(T, I...)(I sizes) nothrow @trusted
+1261:CommonType!(T[], U[]) overlap(T, U)(T[] a, U[] b) @trusted
+1549:        @trusted static void moveToRight(T[] arr, size_t gap)
+1863:@trusted
+3596:    this(A arr) @trusted
+3665:    @property inout(T)[] opSlice() inout @trusted
+3920:        void clear() @trusted pure nothrow
+...
+```
+
+One command. The auditor immediately sees `uninitializedArray` — a function that returns an array with uninitialized memory and attests that it's safe to call. The function signature, file, and line number are all present. The auditor can pick this method, read its body, and verify the attestation. No script. No LSP. No inference.
+
+**Step 2: Inspect unsafe blocks** (Rust, [rust-lang/rust](https://github.com/rust-lang/rust) `library/`)
+
+```bash
+$ rg "unsafe fn" --type rust library/alloc/src/alloc.rs -A 10
+```
+
+```text
+pub unsafe fn alloc(layout: Layout) -> *mut u8 {
+    unsafe {
+        // Make sure we don't accidentally allow omitting the allocator shim in
+        // stable code until it is actually stabilized.
+        __rust_no_alloc_shim_is_unstable_v2();
+
+        __rust_alloc(layout.size(), layout.alignment())
+    }
+}
+...
+pub unsafe fn dealloc(ptr: *mut u8, layout: Layout) {
+    unsafe { dealloc_nonnull(NonNull::new_unchecked(ptr), layout) }
+}
+```
+
+One command. The auditor sees the full function: its unsafe contract (`unsafe fn` — callers must ensure valid layout), its interior unsafe operations (`__rust_alloc`, `NonNull::new_unchecked`), and the `// SAFETY:`-style comments. An agent can review this in a single pass and ask for more context only if needed.
+
+**The gap:** D gives you step 1 but not step 2 — `@system` code is implicit, so the auditor can't grep for the unsafe functions that `uninitializedArray` depends on. Rust gives you step 2 but not step 1 — there's no way to grep for which safe functions wrap those unsafe operations. Each language provides half the workflow.
+
+**C# (optimal)** would provide both steps in a single codebase:
+
+```bash
+$ rg "trusted" --type cs                    # Step 1: find trust boundaries
+$ rg "unsafe" --type cs -A 20               # Step 2: inspect unsafe code
+```
+
+The first command finds every trust boundary. The second finds every unsafe operation with body context. Together they give the auditor the complete safety-critical picture: who attested what, and what unsafe operations they're attesting to. No other language in this comparison achieves both.
