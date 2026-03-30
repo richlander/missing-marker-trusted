@@ -254,7 +254,7 @@ Directly discoverable.
 
 Rust deliberately chose fine-grained `unsafe` block scoping. [RFC 2585](https://rust-lang.github.io/rfcs/2585-unsafe-block-in-unsafe-fn.html) separated "unsafe to call" from "body does unsafe things." The Rust Book [advises](https://doc.rust-lang.org/book/ch20-01-unsafe-rust.html) keeping `unsafe` blocks small; the Rustonomicon [notes](https://doc.rust-lang.org/nomicon/safe-unsafe-meaning.html) that standard library safe abstractions over unsafe code "have generally been rigorously manually checked." The guidance is clear — unsafe code is where the review budget goes — but the trust boundary function that wraps it remains unnamed and undiscoverable by grep.
 
-Narrow `unsafe` blocks have a real payoff for grep-based auditing: the smaller the block, the more context a single grep with `-A N` captures. The same applies to Swift's `unsafe expr` prefix, which scopes unsafety to a single expression. Both designs make the unsafe *operations* easy to review even though the trust *boundaries* remain hidden.
+Narrow `unsafe` blocks have a real payoff for grep-based auditing: the smaller the block, the more context a single grep with `-A N` captures.
 
 ### Swift
 
