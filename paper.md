@@ -26,9 +26,6 @@ My overall take on a memory safety system:
 - It should increase confidence while reducing (or at least focusing) manual effort, by simplifying workflows and limiting the search space.
 - Agent-assisted code migration and maintenance is a core part of our vision. We need to cater to that with a specific plan on how to durably deliver on it.
 - The success (and cost) of the system depends on the degree to which it relies on inference in the semantic domain. High inference means low clarity means low confidence means high cost.
-- We can easily test the cost of inference using grep as a proxy.
-
-We've primarily been looking at Rust and Swift. I think we can also learn from D. D's three-layer architecture — with explicit trust boundaries — is the right model. We're in the enviable position where we can pick from the best ideas of the last couple decades. One can argue that C# established this modern domain, of safe languages with first-class memory access and FFI. The spoiler is that the optimal solution is well within reach, with just a few tweaks to our current plan. C# can establish a strong memory safety model for the 2030s, the decade of agents.
 
 Relevant design specs:
 
@@ -44,7 +41,9 @@ Relevant design specs:
 
 ## Discoverability scores
 
-This paper compares D, Rust, Swift, and three C# alternatives using grep as a proxy for design complexity. Each design is scored on how easily an auditor or agent can find trust boundaries and unsafe code, whether the safety model is enforced by default, and observable workflow problems. The [full methodology](#appendix-scoring-methodology) is in the appendix.
+We've primarily been looking at Rust and Swift. I think we can also learn from D. We're in the enviable position where we can pick from the best ideas of the last couple decades. One can argue that C# established this modern domain, of safe languages with first-class memory access and FFI. The optimal solution is well within reach, with just a few tweaks to our current plan.
+
+We can test the cost of inference using grep as a proxy. This paper compares D, Rust, Swift, and three C# alternatives — scoring each on how easily an auditor or agent can find trust boundaries and unsafe code, whether the safety model is enforced by default, and observable workflow problems. The [full methodology](#appendix-scoring-methodology) is in the appendix.
 
 | Design | Score |
 |--------|-------|
