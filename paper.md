@@ -155,7 +155,7 @@ All unmarked methods are implicitly safe. The three-layer model is exhaustive an
 
 1. Migration tooling scans for methods with interior `unsafe` blocks and marks them `unsafe` conservatively.
 2. Developers triage each method: mark as `trusted` (attests safety to callers) or leave as `unsafe` (propagates to callers).
-3. The codebase compiles with errors — every trust boundary is explicitly marked.
+3. The codebase compiles cleanly — every trust boundary is explicitly marked, enforced by errors.
 
 ### Proposed workflow
 
