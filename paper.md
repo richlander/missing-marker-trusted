@@ -750,17 +750,13 @@ Unsafe declarations — functions that are unsafe to call — are the second aud
 
 The weight of 3 reflects that unsafe code is important but secondary to the trust boundary. You need to find it for the full audit picture, but knowing where the attestations are matters more than knowing where the raw unsafe operations are.
 
-#### Auditing design: Outer unsafe is caller contract (+1)
+#### Auditing design: Outer unsafe is viral contract (+1)
 
-When `unsafe` on a function signature means "callers must be in an unsafe context to call this function," the annotation carries a semantic contract. The compiler enforces that callers acknowledge the unsafety. This is stronger than `unsafe` merely enabling a scope — it propagates responsibility upward through the call chain.
+When `unsafe` on a function signature propagates to callers — requiring them to also be in an unsafe context — the unsafety spreads upward through the call chain until a `trusted` method absorbs it. This creates a traceable chain from unsafe operations through to their trust boundary. Without this property, `unsafe` merely enables a scope and the call graph carries no safety information.
 
-This matters because it makes the call graph safety-aware. An auditor can trace from a trust boundary to its unsafe callees and know that each callee's contract is compiler-enforced.
+#### Auditing design: Inner unsafe is constrained (+1)
 
-#### Auditing design: Inner unsafe is implementation-only (+1)
-
-When interior `unsafe` blocks are implementation-only — hidden from callers, absorbed by the enclosing trust boundary — the trust boundary's attestation is the single point of responsibility. Callers don't need to know about or account for the interior unsafe operations.
-
-This matters for review scoping. If interior unsafe leaks to callers, every caller must also be reviewed. If it's implementation-only, only the trust boundary needs review.
+When interior `unsafe` blocks are implementation-only — hidden from callers, absorbed by the enclosing trust boundary — the audit surface is minimized. The compiler verifies everything outside the `unsafe` blocks; the semantic auditor (human or agent) focuses only on what's inside them. This is the discipline that makes the three-layer model work: maximize what the compiler checks, minimize what the auditor must review.
 
 #### Demerit: Grep ambiguity (-1 each)
 
