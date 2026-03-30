@@ -778,7 +778,7 @@ The demerit is scaled by distribution model. For source-distributed languages, c
 
 #### Demerit: Non-standard terminology (-1)
 
-Observable: compare `unsafe fn` (Rust), `@unsafe` (Swift), `unsafe` (C#) — three of four languages use the `unsafe` keyword for caller-unsafe code. (D uses `@system`, a different term but a single clear keyword.) `[RequiresUnsafe]` is a C#-only attribute with no counterpart in other languages. Worse, `[RequiresUnsafe(false)]` is a double negative — the attribute name says "requires unsafe" and the parameter says "no it doesn't." An auditor crossing language boundaries must learn a C#-specific concept that maps to what every other language expresses with a keyword.
+Observable: compare `unsafe fn` (Rust), `@unsafe` (Swift), `unsafe` (C#) — three of four languages use the `unsafe` keyword for caller-unsafe code. (D uses `@system`, a synonymous and clear term.) `[RequiresUnsafe]` is a C#-only attribute with no counterpart in other languages. Worse, `[RequiresUnsafe(false)]` is compound and a double negative — the attribute name says "requires unsafe" and the parameter says "no it doesn't." An auditor crossing language boundaries must learn a C#-specific concept that maps to what every other language expresses with a keyword.
 
 #### Demerit: Duplicate marking (-1)
 
