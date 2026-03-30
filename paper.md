@@ -366,7 +366,7 @@ StrictMemorySafety warnings:      12,526 across 319 files
 
 The compiler mode is comprehensive — it finds every expression that uses unsafe constructs but isn't marked with `unsafe`. This is authoritative in a way grep cannot be (no false negatives from templates, type inference, or implicit unsafety). However, the 12,526 warnings identify unsafe *usage sites*, not trust boundaries. The output tells you where unsafe code is used but not which functions attest that the usage is safe. An auditor reviewing these warnings would need to manually determine which enclosing function is the trust boundary — the same inference problem that grep has, just with a more complete starting list.
 
-The compiler audit tool and grep serve the same side of the ledger: inventorying unsafe code. Neither answers the trust boundary question.
+The compiler audit tool and grep serve the same side of the ledger: inventorying unsafe code. Neither answers the trust boundary question. It's still a search for the roots from the leaves.
 
 ### C# (Current State)
 
@@ -388,25 +388,31 @@ Common/src/Interop/Windows/NCrypt/Interop.NCryptDeriveKeyMaterial.cs	19	NCryptDe
 Common/src/System/Net/Security/CertificateValidation.Windows.cs	17	BuildChainAndVerifyProperties ...
 ```
 
-Not directly discoverable.
+Not directly discoverable. While all these scripts are likely to be found lacking, this example is likely the most lacking since its targeting a language design with no strong notion of TBF.
 
-**Finding unsafe code** — C# supports `unsafe` on both methods and blocks, but doesn't syntactically distinguish between them:
+**Finding unsafe code** — C# supports `unsafe` on methods, blocks, classes, and fields. It falls apart when methods and blocks are both present. A single directory shows the problem:
 
 ```bash
-$ rg "unsafe" --type cs src/libraries | head -10
+$ rg "unsafe" --type cs src/libraries/.../Microsoft/Win32/SafeHandles
 ```
 
 ```text
-src/libraries/System.IO.Ports/src/System/IO/Ports/SerialStream.Windows.cs
-63:        private static readonly unsafe IOCompletionCallback s_IOCallback = ...
-859:        public override unsafe int EndRead(IAsyncResult asyncResult)
-934:        public override unsafe void EndWrite(IAsyncResult asyncResult)
-1008:        internal unsafe int Read(byte[] array, int offset, int count, int timeout)
-1070:        internal unsafe void Write(byte[] array, int offset, int count, int timeout)
-...
+SafeFileHandle.Windows.cs
+146:        private static unsafe SafeFileHandle CreateFile(string fullPath, ...)
+197:        private static unsafe void Preallocate(string fullPath, ...)
+280:        internal unsafe FileOptions GetFileOptions()
+355:        private unsafe FileHandleType GetPipeOrSocketType()
+374:        private unsafe FileHandleType GetDiskBasedType()
+421:            unsafe long GetFileLengthCore()
+
+SafeFileHandle.OverlappedValueTaskSource.Windows.cs
+47:        internal sealed unsafe class OverlappedValueTaskSource : IValueTaskSource<int>, ...
+
+SafeFileHandle.Unix.cs
+201:            unsafe
 ```
 
-At first glance, this matches D and Rust in discoverability for finding `unsafe` methods. But it breaks down when `unsafe` methods and `unsafe` blocks are both present in results — there is no syntactic way to distinguish outer (caller) unsafety from interior (implementation) unsafety without reading the method body.
+The auditor sees `unsafe` on method signatures, on a class declaration, and as a standalone block — all with the same keyword. There is no syntactic way to determine the safety role of a hit without reading the surrounding context.
 
 **The `unsafe class` problem** — members of an `unsafe class` are implicitly unsafe without any per-method marker. See [`scripts/find-csharp-unsafe-methods.sh`](scripts/find-csharp-unsafe-methods.sh):
 
