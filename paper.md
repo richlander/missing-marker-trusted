@@ -436,11 +436,11 @@ C# currently offers the least discoverability among the four languages.
 
 ## Discoverability and Auditing Grades
 
-We score each language on three dimensions — **discovery** (can you find the code that needs review?), **auditing clarity** (does the design support the review workflow?), and **enforcement** (are grep results backed by compiler guarantees?) — with demerits for non-standard terminology, duplicate marking, and audit-based models. The grading methodology is detailed in [Appendix: Scoring Methodology](#appendix-scoring-methodology).
+We score each language on three dimensions — **discovery** (can you find the code that needs review?), **auditing clarity** (does the design support an effective workflow?), and **enforcement** (are grep results backed by compiler guarantees?) — with demerits for non-standard terminology, duplicate marking, and audit-based models. The grading methodology is detailed in [Appendix: Scoring Methodology](#appendix-scoring-methodology).
 
 | Language | Grade | Summary |
 |----------|-------|---------|
-| C# (optimal) | **A** | `trusted` keyword + `unsafe` as caller contract + interior `unsafe` as implementation-only + enforcement via errors. Full marks, no demerits. |
+| C# (optimal) | **A** | `trusted` keyword + `unsafe` as caller contract + interior `unsafe` as implementation-only + enforcement via errors. 92.5% — loses 1.5 points because `unsafe` methods and blocks share a keyword. No demerits. |
 | D | **B** | Trust boundaries (`@trusted`) are perfectly discoverable with enforcement. Unsafe code (`@system`) is implicit and invisible to grep. No demerits. |
 | Rust | **C** | Unsafe declarations (`unsafe fn`) are perfectly discoverable with full auditing design and enforcement. Trust boundaries require an 80-line awk script. No demerits. |
 | C# + `unsafe` keyword | **D+** | The [runtime team proposal](https://github.com/dotnet/csharplang/pull/10058): `unsafe` on a method means caller-unsafe. Full auditing design, enforcement via errors, no demerits. No trust boundary marker. |
