@@ -321,6 +321,23 @@ stdlib/public/Synchronization/Mutex/Mutex.swift
 
 Discoverable after you realize the pattern. The Rust one-line syntax (`unsafe fn`) is more ergonomic here, but Swift's approach is perfectly workable.
 
+**Finding unsafe expressions** — Swift uses `unsafe` as an expression prefix (not a block). In libraries that have adopted SE-0458 (e.g., [apple/swift-collections](https://github.com/apple/swift-collections)):
+
+```bash
+$ rg "[[:space:](=]unsafe [[:alpha:]]" --type swift Sources | head -8
+```
+
+```text
+ContainersPreview/Types/Box.swift:74:      unsafe UnsafePointer<T>(_pointer)
+ContainersPreview/Types/Box.swift:100:    let result = unsafe Inout<T>(unsafeImmortalAddress: _pointer)
+ContainersPreview/Types/Box.swift:113:    unsafe Borrow(unsafeAddress: UnsafePointer(_pointer), borrowing: self)
+ContainersPreview/Types/Inout.swift:79:      unsafe UnsafePointer<Target>(_pointer)
+ContainersPreview/Types/Inout.swift:121:    let pointer = unsafe UnsafeMutablePointer<Wrapped>(
+ContainersPreview/Types/Borrow.swift:87:    let pointer = unsafe UnsafePointer<Wrapped>(
+```
+
+Each `unsafe` expression is a single operation — the scoping is tighter than Rust's `unsafe {}` blocks. Directly discoverable via regex.
+
 #### Design tradeoff
 
 Swift chose `@unsafe` as a declaration attribute and `unsafe` as an expression prefix for composability. [SE-0458](https://github.com/swiftlang/swift-evolution/blob/main/proposals/0458-strict-memory-safety.md) optimizes for safety expressiveness. The [memory safety vision](https://github.com/swiftlang/swift-evolution/blob/main/visions/memory-safety.md) describes an "auditing tool" that can identify all unsafe opt-outs. The emphasis is on compiler-assisted audit — reasonable for a source-distributed language, but it leaves trust boundaries dependent on tooling rather than self-describing in source.
