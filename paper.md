@@ -186,6 +186,23 @@ Here are some prompts to consider:
 
 These prompts are currently expensive in C# — and in D, Rust, and Swift. Testing the first prompt against dotnet/runtime required ~14 grep commands and significant manual inference just to distinguish trust boundary functions from fully-unsafe methods. The second required ~8 commands plus semantic reasoning to categorize results by purpose. The third is effectively unbounded without a starting set of trust boundaries to evaluate. With `trusted`, prompt 1 becomes a single `rg "trusted" --type cs src/libraries/System.IO*` command. The model reads the bodies of the results and answers directly. We can make these prompts cheap.
 
+### How the designs compare
+
+This paper scores each design on discovery, auditing design, and observable workflow problems. The [full methodology](#appendix-scoring-methodology) is in the appendix. The headline:
+
+| Design | Score |
+|--------|-------|
+| C# (optimal) — `unsafe` + `trusted`, default-on | **87.5%** |
+| Rust | **77.5%** |
+| C# + `unsafe` + `trusted` (opt-in) | **72.5%** |
+| C# + `unsafe` keyword (no `trusted`) | **50.0%** |
+| Swift | **50.0%** |
+| D | **40.0%** |
+| C# (current) | **35.0%** |
+| C# + `RequiresUnsafe` | **30.0%** |
+
+Rust leads today because its safety model has always been default-on. Adding `trusted` to C# closes most of the gap. The full analysis follows in the [scoring section](#discoverability-and-auditing-scores).
+
 ## The case against `safe` for Trust Boundary Functions
 
 My initial thinking -- in C# parlance -- was to mark TBFs `safe` since that's the opposite of `unsafe` and the intent is to provide a safe wrapper. The strongest argument for `safe` is that it's the natural antonym — C# developers expect it as the counterpart to `unsafe`, and Rust's RFC 3484 introduced `safe` as a contextual keyword in extern blocks for exactly this pairing.
