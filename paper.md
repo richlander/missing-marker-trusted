@@ -470,7 +470,7 @@ StrictMemorySafety warnings:      12,526 across 319 files
 
 The compiler mode is comprehensive — it finds every expression that uses unsafe constructs but isn't marked with `unsafe`. This is authoritative in a way grep cannot be (no false negatives from templates, type inference, or implicit unsafety). However, the 12,526 warnings identify unsafe *usage sites*, not trust boundaries. The output tells you where unsafe code is used but not which functions attest that the usage is safe. An auditor reviewing these warnings would need to manually determine which enclosing function is the trust boundary — the same inference problem that grep has, just with a more complete starting list.
 
-The compiler audit tool and grep serve the same side of the ledger: inventorying unsafe code. Neither answers the trust boundary question. Finding the 118 trust boundary functions still requires the 110-line awk script — even with the compiler's authoritative unsafe inventory, there is no way to go from leaves to roots without a parser.
+The compiler audit tool and grep serve the same side of the ledger: inventorying unsafe code. Neither answers the trust boundary question. Finding the 118 trust boundary functions still requires the 110-line awk script — even with the compiler's authoritative unsafe inventory, there is no way to go from leaves to roots without a parser. It is indeed an awkward script.
 
 ### C# (Current State)
 
@@ -540,15 +540,15 @@ C# currently offers the least discoverability among the four languages.
 
 ## Discoverability and Auditing Grades
 
-We score each language on three dimensions — **discovery** (can you find the code that needs review?), **auditing clarity** (does the design support an effective workflow?), and **enforcement** (are grep results backed by compiler guarantees?) — with demerits for non-standard terminology, duplicate marking, and audit-based models. The grading methodology is detailed in [Appendix: Scoring Methodology](#appendix-scoring-methodology).
+We score each language on three dimensions — **discovery** (can you find the code that needs review?), **auditing clarity** (does the design support an effective workflow?), and **enforcement** (what assumptions can be made for grep targets?) — with demerits for non-standard terminology, duplicate marking, and audit-only models. The grading methodology is detailed in [Appendix: Scoring Methodology](#appendix-scoring-methodology).
 
 | Language | Grade | Summary |
 |----------|-------|---------|
 | C# (optimal) | **B+** | `trusted` keyword + `unsafe` as caller contract + interior `unsafe` as implementation-only + enforcement via errors. 87.5% — loses 1.5 discovery points and 1 demerit because `unsafe` methods and blocks share a keyword. |
 | D | **B** | Trust boundaries (`@trusted`) are perfectly discoverable with enforcement. Unsafe code (`@system`) is implicit and invisible to grep. No demerits. |
 | Rust | **C** | Unsafe declarations (`unsafe fn`) are perfectly discoverable with full auditing design and enforcement. Trust boundaries require an 80-line awk script. No demerits. |
-| C# + `unsafe` keyword | **D** | The [`unsafe` proposal](https://github.com/dotnet/csharplang/pull/10058): `unsafe` on a method means caller-unsafe. Full auditing design, enforcement via errors. One demerit: `unsafe` still mixes methods and blocks. No trust boundary marker. |
-| Swift | **D** | Unsafe declarations (`@unsafe`) require `-A 1` context. Trust boundaries require a script. Full auditing design but audit-based (warnings, not errors) — demerit for source-distributed non-enforcement. |
+| C# + `unsafe` keyword | **D** | The [`unsafe` proposal](https://github.com/dotnet/csharplang/pull/10058): `unsafe` on a method means caller-unsafe. Caller contract and implementation-only scoping, enforcement via errors. One demerit: `unsafe` still mixes methods and blocks. No trust boundary marker. |
+| Swift | **D** | Unsafe declarations (`@unsafe`) require `-A 1` context. Trust boundaries require a script. Caller contract and implementation-only scoping, but audit-based (warnings, not errors) — demerit for source-distributed non-enforcement. |
 | C# + `RequiresUnsafe` | **F** | The [`RequiresUnsafe` proposal](https://github.com/dotnet/csharplang/blob/main/proposals/unsafe-evolution.md): `[RequiresUnsafe]` attribute for caller-unsafe. Four demerits: `unsafe` mixes methods and blocks, `RequiresUnsafe` mixes true and false, non-standard terminology, and duplicate marking. No trust boundary marker. |
 | C# (current) | **F** | Unsafe declarations are discoverable but ambiguous. Trust boundaries require a script. No auditing design. Four demerits: `unsafe` mixes methods and blocks, audit-based model with binary distribution (×3). |
 
