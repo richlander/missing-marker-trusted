@@ -211,8 +211,6 @@ This tells us two things:
 - TBFs are unsafe
 - safe code can call a class of unsafe methods
 
-There is some discussion about using `safe` for `extern` methods. We shouldn't use `safe` there, even if we know that safe Rust is on the other side. The C# compiler cannot verify what happens across the FFI boundary — with a high emphasis on _Foreign_. The implementation behind that boundary can change to a different language without the C# declaration changing. `safe` is a compiler attestation; `trusted` is the right marker for a human claim about code the compiler cannot see.
-
 `safe` is a compiler attestation while `trusted` is a human or agent attestation. Don't confuse the two as they are not similar.
 
 ## Analysis of Current Proposals
@@ -227,6 +225,8 @@ A [follow-up PR](https://github.com/dotnet/csharplang/pull/10058) proposes going
 > This feature will introduce compilation errors in existing unsafe code when opted into. High-confidence AI-assisted automation of the migration process flow is a part of the feature design.
 
 The PR uses `safe` as the keyword. This paper argues for `trusted` instead: these methods are not safe in the compiler-verified sense — they are unsafe code that attests safety to callers. `trusted` avoids that confusion and aligns with D's `@trusted` and our Silverlight "safe critical" precedent. `[RequiresUnsafe(false)]` would be model-equivalent but is a double negative — it negates a property rather than asserting one. `rg "trusted"` reads as intent; `rg "RequiresUnsafe(false)"` reads as an implementation detail.
+
+The same applies to `safe` for `extern` methods. We shouldn't use `safe` there, even if we know that safe Rust is on the other side. The C# compiler cannot verify what happens across the FFI boundary — with a high emphasis on _Foreign_. The implementation behind that boundary can change to a different language without the C# declaration changing. `trusted` is the right marker for a human claim about code the compiler cannot see.
 
 The [unsafe evolution proposal](https://github.com/dotnet/csharplang/blob/main/proposals/unsafe-evolution.md) introduces `RequiresUnsafe` for caller-unsafe methods but similarly leaves trust boundary functions unmarked. The [alternative syntax proposal](https://github.com/dotnet/csharplang/blob/main/meetings/working-groups/unsafe-evolution/unsafe-alternative-syntax.md) explicitly notes that `[RequiresUnsafe]` "does not imply that the member is an unsafe context" — the author scopes `unsafe` blocks as they see fit, but the enclosing method gets no marker.
 
