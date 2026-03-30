@@ -424,6 +424,24 @@ ContainersPreview/Types/Borrow.swift:87:    let pointer = unsafe UnsafePointer<W
 
 Each `unsafe` expression is a single operation — tighter scoping than Rust's `unsafe {}` blocks. Discoverable via regex, though the pattern is more complex than Rust's `unsafe {` (which also has a newline edge case).
 
+**Swift's internal unsafe language** — beyond `@unsafe` and `unsafe expr`, Swift has internal-only unsafe constructs that add auditing burden. From [Box.swift](https://github.com/apple/swift-collections/blob/main/Sources/ContainersPreview/Types/Box.swift) in swift-collections:
+
+```swift
+public subscript() -> T {
+    @_transparent
+    unsafeAddress {
+      unsafe UnsafePointer<T>(_pointer)
+    }
+
+    @_transparent
+    unsafeMutableAddress {
+      unsafe _pointer
+    }
+  }
+```
+
+`unsafeAddress` and `unsafeMutableAddress` are accessors that return raw pointers from property/subscript access — zero-copy performance but with no bounds checking or lifetime tracking. They look like identifiers, not safety keywords. An auditor grepping for `unsafe` gets noise from them; an auditor not grepping for them misses fundamentally unsafe accessor patterns hidden behind normal subscript syntax. C# solves the same zero-copy access problem with `ref` returns, which stay within the safe type system.
+
 #### Design tradeoff
 
 Swift chose `@unsafe` as a declaration attribute and `unsafe` as an expression prefix for composability. [SE-0458](https://github.com/swiftlang/swift-evolution/blob/main/proposals/0458-strict-memory-safety.md) optimizes for safety expressiveness. The [memory safety vision](https://github.com/swiftlang/swift-evolution/blob/main/visions/memory-safety.md) describes an "auditing tool" that can identify all unsafe opt-outs. The emphasis is on compiler-assisted audit — reasonable for a source-distributed language, but it leaves trust boundaries dependent on tooling rather than self-describing in source.
