@@ -151,13 +151,11 @@ All unmarked methods are implicitly safe. The three-layer model is exhaustive an
 
 **Design details:** As a contextual keyword modifier, `trusted` occupies the same syntactic position as `unsafe` and inherits its design answers for interfaces, virtual methods, async methods, and delegates. If `unsafe` is valid on a method signature, `trusted` is valid there too — they are complementary markers in the same design space. Methods inside an `unsafe class` that present a safe surface must use `trusted` explicitly — eliminating the "implicit unsafe type" audit gap. Interior lambdas and local functions are covered by the enclosing `trusted` method's attestation, matching D's `@trusted` model.
 
-**Migration path:** `trusted` is an additive contextual keyword. Like all the proposals in this space, opting in is a breaking change that requires work to compile without errors — the difference is degree, not kind.
+**Migration path:** Like all the proposals in this space, opting in is a breaking change that requires work to compile without errors — the difference is degree, not kind.
 
-1. Analyzer warns on unannotated trust boundaries.
-2. `trusted` becomes a recognized modifier.
-3. The warning becomes an error.
-
-Migration tooling scans for methods with interior `unsafe` blocks, marks them `unsafe` conservatively, and developers triage to `trusted` where appropriate.
+1. Migration tooling scans for methods with interior `unsafe` blocks and marks them `unsafe` conservatively.
+2. Developers triage each method: mark as `trusted` (attests safety to callers) or leave as `unsafe` (propagates to callers).
+3. The codebase compiles with errors — every trust boundary is explicitly marked.
 
 ### Proposed workflow
 
