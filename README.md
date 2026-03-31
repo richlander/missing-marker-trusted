@@ -54,7 +54,7 @@ The paper proposes grep as a proxy for inference cost and compares D, Rust, Swif
 | Swift | **50.0%** |
 | D | **40.0%** |
 | C# (current) | **35.0%** |
-| C# + `RequiresUnsafe` | **30.0%** |
+| C# + `RequiresUnsafe` | **35.0%** |
 
 Rust leads today because its borrow checker and safety model have always been default-on. Adding `trusted` to C# closes most of the gap, per this scoring scheme. The rest of the paper builds the case for these results.
 
@@ -584,11 +584,11 @@ Discovery has three equally-weighted dimensions: trust boundary discovery, unsaf
 | Swift | **50.0%** | Unsafe declarations (`@unsafe`) require `-A 1` context. Safe-as-default, caller contract and implementation-only scoping, but strict safety is opt-in (`-strict-memory-safety`) — demerit for source-distributed non-enforcement. Trust boundaries require a script. |
 | D | **40.0%** | Trust boundaries (`@trusted`) are perfectly discoverable. But unsafe-first default means trust boundaries only cover the `@safe` subset, and `@safe` is opt-in. Unsafe code (`@system`) is implicit and invisible to grep. No demerits. |
 | C# (current) | **35.0%** | Unsafe declarations are discoverable but ambiguous. Safe-as-default, enforcement on by default. Trust boundaries require a script. No caller contract or implementation-only scoping. Five demerits: `unsafe` mixes methods/blocks/types, `unsafe class` implicit members, audit-based model with binary distribution (×3). |
-| C# + `RequiresUnsafe` | **30.0%** | The [`RequiresUnsafe` proposal](https://github.com/dotnet/csharplang/blob/main/proposals/unsafe-evolution.md): `[RequiresUnsafe]` attribute for caller-unsafe. Safe-as-default. Opt-in. Five demerits: `unsafe` mixes methods/blocks/types, `unsafe class` implicit members, `RequiresUnsafe` mixes true/false, non-standard terminology, and duplicate marking. No trust boundary marker. |
+| C# + `RequiresUnsafe` | **35.0%** | The [`RequiresUnsafe` proposal](https://github.com/dotnet/csharplang/blob/main/proposals/unsafe-evolution.md): `[RequiresUnsafe]` attribute for caller-unsafe. Safe-as-default. Opt-in. Four demerits: `unsafe` mixes methods/blocks/types, `unsafe class` implicit members, `RequiresUnsafe` mixes true/false, and duplicate marking. No trust boundary marker. |
 
-The two active C# proposals — `unsafe` keyword and `[RequiresUnsafe]` — land at 50.0% and 30.0% respectively without `trusted`. Adding `trusted` lifts C# to 72.5% — competitive with Rust — and the `unsafe` vs `RequiresUnsafe` debate is worth 4 points in demerits, driven by observable grep workflow problems rather than syntax preference.
+The two active C# proposals — `unsafe` keyword and `[RequiresUnsafe]` — land at 50.0% and 35.0% respectively without `trusted`. Adding `trusted` lifts C# to 72.5% — competitive with Rust — and the `unsafe` vs `RequiresUnsafe` debate is worth 3 points in demerits, driven by observable grep workflow problems rather than syntax preference.
 
-Note: `RequiresUnsafe` (30.0%) scores below C# current (35.0%). This is not a claim that it makes safety worse — it adds real structural improvements (caller contract, implementation-only scoping). But the attribute form introduces enough grep noise (double negative, true/false mixing, duplicate marking) to offset those gains. The `unsafe` keyword proposal gets the same structural improvements without the noise, which is why it scores 50.0%.
+Note: `RequiresUnsafe` (35.0%) ties with C# current (35.0%). This is not a claim that it makes safety no better — it adds real structural improvements (caller contract, implementation-only scoping). But the attribute form introduces enough grep noise (true/false mixing, duplicate marking) to offset those gains. The `unsafe` keyword proposal gets the same structural improvements without the noise, which is why it scores 50.0%.
 
 C# (optimal) represents the mature state: `unsafe` keyword + `trusted` keyword + enforcement on by default (no longer opt-in). Rust leads today at 77.5% because its borrow checker and unsafe propagation have always been default-on. The distance from C# + `unsafe` + `trusted` (72.5%) to C# (optimal) (87.5%) is model maturity — the same path Rust has already completed. The remaining gap to 100% is the inherent ambiguity of `unsafe` serving as both method modifier and block keyword — a cost C# pays for backward compatibility.
 
@@ -668,15 +668,11 @@ Observable: build [apple/swift-collections](https://github.com/apple/swift-colle
 
 The demerit is scaled by distribution model. For source-distributed languages, consumers can run the compiler themselves and see warnings — the demerit is -1. For binary-distributed languages like C#/.NET, warnings are invisible to consumers (they receive compiled assemblies, not source) — the demerit is -3. Binary distribution is not incidental to .NET — it is a consequence of language design. .NET's stable metadata format made binary distribution possible; NuGet followed. Rust's lack of a stable ABI forces crates.io to distribute source — consumers recompile and see warnings themselves. Both are compiler decisions, not packaging decisions. C#'s language design must account for the distribution model it created: errors are the only safety signal that crosses the binary boundary.
 
-#### Demerit: Non-standard terminology (-1)
-
-Observable: `[RequiresUnsafe(false)]` is a compound double negative — the attribute name says "requires unsafe" and the parameter says "no it doesn't." During code review, the reviewer must mentally resolve the negation before reaching the safety question. This is the same cognitive cost that makes `if (!disabled)` harder to read than `if (enabled)`. A keyword (`trusted`) asserts intent directly; a double-negative attribute encodes it indirectly.
-
 #### Demerit: Duplicate marking (-1)
 
 Observable: under the `[RequiresUnsafe]` attribute approach, run `rg "RequiresUnsafe.*unsafe\|unsafe.*RequiresUnsafe"` on a C# codebase with pointer-bearing methods. Methods carry both `unsafe` (legacy scope enabler) and `[RequiresUnsafe]` (new caller-unsafe semantics): `[RequiresUnsafe] unsafe void M(int* p)`. As noted in the [follow-up PR](https://github.com/dotnet/csharplang/pull/10058): "Having both `RequiresUnsafe` and `unsafe` on a method is confusing. Without consulting the language specification, these terms appear to be duplicated." In dotnet/runtime, 97% of methods with pointers would require this dual annotation. The auditor must understand both annotations together to determine the method's safety role.
 
-Of the five demerits against C# + `RequiresUnsafe`: three are driven by the attribute representation (true/false mixing, double-negative terminology, duplicate marking), one is a proposal design choice unrelated to the attribute form (`unsafe class` implicit members — the proposal could have addressed this), and one is shared by all C# variants (`unsafe` mixing). Swift's `@unsafe` demonstrates that even a clean attribute has a grep cost — it loses 0.5 discovery points because `@unsafe` lands on a separate line, requiring `-A 1` for useful output — but Swift avoids the three `RequiresUnsafe`-specific demerits because `@unsafe` is a single-purpose marker with no boolean parameter, no double negative, and no duplicate keyword.
+Of the four demerits against C# + `RequiresUnsafe`: two are driven by the attribute representation (true/false mixing, duplicate marking), one is a proposal design choice unrelated to the attribute form (`unsafe class` implicit members — the proposal could have addressed this), and one is shared by all C# variants (`unsafe` mixing). Swift's `@unsafe` demonstrates that even a clean attribute has a grep cost — it loses 0.5 discovery points because `@unsafe` lands on a separate line, requiring `-A 1` for useful output — but Swift avoids the two `RequiresUnsafe`-specific demerits because `@unsafe` is a single-purpose marker with no boolean parameter and no duplicate keyword.
 
 ### Scoring detail
 
@@ -707,9 +703,8 @@ Of the five demerits against C# + `RequiresUnsafe`: three are driven by the attr
 | `RequiresUnsafe` mixes true and false | — | — | — | — | — | -1 | — | — |
 | Audit-based, source-delivered | — | — | -1 | — | — | — | — | — |
 | Audit-based, binary-delivered | — | — | — | -3 | — | — | — | — |
-| Non-standard terminology | — | — | — | — | — | -1 | — | — |
 | Duplicate marking | — | — | — | — | — | -1 | — | — |
-| **Total demerits** | **0** | **0** | **-1** | **-5** | **-1** | **-5** | **-1** | **-1** |
+| **Total demerits** | **0** | **0** | **-1** | **-5** | **-1** | **-4** | **-1** | **-1** |
 
 ### Combined results
 
@@ -724,7 +719,7 @@ Base possible: 15 (discovery) + 5 (auditing) = **20**
 | Swift | 9 | 2 | -1 | 10 | 50.0% |
 | D | 6 | 2 | 0 | 8 | 40.0% |
 | C# (current) | 9 | 3 | -5 | 7 | 35.0% |
-| C# + `RequiresUnsafe` | 9 | 2 | -5 | 6 | 30.0% |
+| C# + `RequiresUnsafe` | 9 | 2 | -4 | 7 | 35.0% |
 
 ### Note on weighting
 
