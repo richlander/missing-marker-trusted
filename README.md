@@ -6,7 +6,7 @@ This proposal starts with an example from an [Andy Gocke](https://github.com/ago
 
 The following content is copied from the CallerUnsafe proposal, without modification.
 
-## Andy's "CallerUnsafe" proposal
+## Andy's "CallerUnsafe" proposal (unmodified; subsetted)
 
 We need to be able to annotate code as unsafe, even if it doesn't use pointers.
 
