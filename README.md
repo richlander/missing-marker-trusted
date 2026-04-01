@@ -2,7 +2,17 @@
 
 Memory safety v2 is one of the most high-stakes features that we've taken on. It directly relates to the most foundational value propositions of the language and runtime and to other industry languages. It's where we have to adopt our most strict and critical design sensibilities.
 
-This proposal starts with an example from an [Andy Gocke](https://github.com/agocke): [CallerUnsafe](https://github.com/dotnet/designs/blob/main/accepted/2025/memory-safety/caller-unsafe.md).
+Safety boundaries — where safe code guards unsafe operations — are the most critical audit targets in any memory-safe codebase. Every language leaves them unmarked. This proposal adds a `safe` keyword to C# so that safety boundaries are explicitly marked, grep-discoverable, and lossless under `git blame`. C# can be the first language to complete this model.
+
+**Deeper dives:**
+
+- [The safety boundary concept](safety-boundary.md) — three-layer model, propagation vs encapsulation, the `safe` keyword design
+- [Language comparison](language-comparison.md) — grep-based discoverability across D, Rust, Swift, and C#, in ranking order
+- [Scoring methodology](scoring-methodology.md) — the grep test framework and detailed scoring
+- [Safe code guarding unsafe operations](safe-guards-unsafe-examples.md) — real-world examples from .NET and Rust standard libraries
+- [Appendices](appendices.md) — lossless attestations, xz backdoor lesson, binary distribution, agent workflows, keyword lineage
+
+This proposal starts with an example from [Andy Gocke](https://github.com/agocke): [CallerUnsafe](https://github.com/dotnet/designs/blob/main/accepted/2025/memory-safety/caller-unsafe.md).
 
 The following content is copied from the CallerUnsafe proposal, without modification.
 
@@ -147,3 +157,32 @@ grep -nP '^\s*(public|private|protected|internal|static|virtual|override|abstrac
 This one is far uglier and also won't work in many cases. It's only offered as a sort of failure case. No one is going to do this. An argument could be made that `grep` doesn't matter, but also needs to extend to clear attestation, and the git diff footgun not mattering.
 
 Search ergonomics are a fitness property of the safety model. Language-specific tools are part of that and so is grep. Rust and Swift have the exact same challenge. This proposal offers an opportunity to evolve the memory safety domain, that explicit markings are critical for the entirety of the unsafe domain. We aspire to make our memory safety model agent friendly. This keyword is a clear leverage point for that. The addition of an explicit keyword will make agent enablement easier and increase confidence by eliminating the footgun and offering implicit skills for agents that are asked to review C#.
+
+## Discoverability Scores
+
+Using grep as a proxy for inference cost, we can [score](scoring-methodology.md) how well each language design supports safety auditing. Languages are [compared](language-comparison.md) on safety boundary discovery, unsafe code discovery, enforcement model, and observable grep workflow problems.
+
+| Design | Score |
+|--------|-------|
+| C# (optimal) — `unsafe` + `safe`, default-on | **87.5%** |
+| Rust | **77.5%** |
+| C# + `unsafe` + `safe` (opt-in) | **72.5%** |
+| C# + `unsafe` keyword (no `safe`) | **50.0%** |
+| Swift | **50.0%** |
+| D | **40.0%** |
+| C# (current) | **35.0%** |
+| C# + `RequiresUnsafe` | **35.0%** |
+
+Rust leads today because its borrow checker and safety model have always been default-on. Adding `safe` to C# closes most of the gap. The remaining distance to 87.5% is model maturity — enforcement on by default — the same path Rust has already completed.
+
+## Binary Distribution
+
+C#/.NET is primarily binary-distributed — consumers receive compiled assemblies, not source code. Compiler warnings during the library author's build are invisible downstream. Errors are the only safety signal that reliably crosses the binary boundary. This raises the bar: anything that is "just a warning" is effectively invisible to the majority of consumers. We need a safety model built on errors, not warnings.
+
+## Lossless Attestations
+
+Explicit markers create lossless `git blame` trails. The [xz backdoor](appendices.md#defense-in-depth-the-xz-backdoor-lesson) illustrates why this matters: the attacker operated where diffs were structurally unremarkable and advisory warnings could be subverted. A `safe` keyword operates at the strongest defense tier — compiler errors. Removing `safe` from a method with interior `unsafe` blocks is a compiler error. The safety attestation cannot silently vanish.
+
+## Agent-Assisted Workflows
+
+A low-inference safety model enables agents to inventory safety boundaries (`rg -w "safe"` — complete, no AST required), scope reviews, detect drift, and assist migration. High-inference models force agents to build ASTs or rely on LSPs — more expensive, fragile, and harder to validate. The LSP protocol's `SymbolKind` has no variant for unsafe or safe; no language server can query for safety-relevant code across a workspace today. See [appendices](appendices.md#agent-assisted-maintenance) for details.

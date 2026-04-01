@@ -223,3 +223,152 @@ pub fn split_once<P: Pattern>(&self, delimiter: P) -> Option<(&'_ str, &'_ str)>
 ```
 
 **Why this matters:** A buggy `Searcher` implementation returning indices that don't land on char boundaries would cause `get_unchecked` to produce invalid `&str` slices — the safety of this method depends entirely on the correctness of the `Searcher` trait contract (safe code).
+
+---
+
+## Swift (apple/swift-collections)
+
+[apple/swift-collections](https://github.com/apple/swift-collections) is one of the first libraries to adopt [SE-0458](https://github.com/swiftlang/swift-evolution/blob/main/proposals/0458-strict-memory-safety.md) strict memory safety annotations.
+
+### [Swift] Deque+Extras.swift — `Deque.init(unsafeUninitializedCapacity:initializingWith:)`
+**File:** Sources/DequeModule/Deque/Deque+Extras.swift
+**Pattern:** After calling a user-provided closure that writes into uninitialized storage, preconditions verify that the reported count doesn't exceed capacity and that the closure didn't relocate storage.
+
+```swift
+@inlinable
+public init(
+  unsafeUninitializedCapacity capacity: Int,
+  initializingWith initializer:
+    (inout UnsafeMutableBufferPointer<Element>, inout Int) throws -> Void
+) rethrows {
+  self._storage = .init(minimumCapacity: capacity)
+  try _storage.update { handle in
+    handle.startSlot = .zero
+    var count = 0
+    var buffer = handle.mutableBuffer(for: .zero ..< _Slot(at: capacity))
+    defer {
+      precondition(count <= capacity,
+        "Initialized count set to greater than specified capacity")
+      let b = handle.mutableBuffer(for: .zero ..< _Slot(at: capacity))
+      precondition(buffer.baseAddress == b.baseAddress && buffer.count == b.count,
+        "Initializer relocated Deque storage")
+      handle.count = count
+    }
+    try initializer(&buffer, &count)
+  }
+}
+```
+
+**Why this matters:** If the initializer lies about how many elements it wrote, or if storage gets relocated during the call, later reads would observe uninitialized or invalid memory. The safe preconditions in the `defer` block are the only defense.
+
+---
+
+### [Swift] Deque+Collection.swift — `Deque.withContiguousMutableStorageIfAvailable`
+**File:** Sources/DequeModule/Deque/Deque+Collection.swift
+**Pattern:** Verifies the deque's storage is contiguous before exposing an `UnsafeMutableBufferPointer`, then preconditions that the closure didn't swap out the buffer.
+
+```swift
+@inlinable
+public mutating func withContiguousMutableStorageIfAvailable<R>(
+  _ body: (inout UnsafeMutableBufferPointer<Element>) throws -> R
+) rethrows -> R? {
+  _storage.ensureUnique()
+  return try _storage.update { handle in
+    let endSlot = handle.startSlot.advanced(by: handle.count)
+    guard endSlot.position <= handle.capacity else {
+      return nil
+    }
+    let original = handle.mutableBuffer(for: handle.startSlot ..< endSlot)
+    var extract = original
+    defer {
+      precondition(extract.baseAddress == original.baseAddress && extract.count == original.count,
+                   "Closure must not replace the provided buffer")
+    }
+    return try body(&extract)
+  }
+}
+```
+
+**Why this matters:** Without the contiguity guard, the pointer could cover only part of the deque's wrapped ring buffer. Without the postcondition, the closure could replace the buffer pointer and invalidate the reference — exposing dangling or out-of-bounds memory to subsequent operations.
+
+---
+
+## What Goes Wrong: CVE-2026-26127
+
+The examples above show correct guards. Below are real cases where a missing or incorrect guard caused a memory safety vulnerability.
+
+### CVE-2026-26127 — Missing guard
+
+**CVE:** [CVE-2026-26127](https://github.com/dotnet/announcements/issues/384) — Out-of-bounds read in .NET  
+**File:** src/libraries/System.Private.CoreLib/src/System/Buffers/Text/Base64Helper/Base64DecoderHelper.cs  
+**Fix:** [dotnet/runtime#124540](https://github.com/dotnet/runtime/commit/19c07820cb72aafc554c3bc8fe3c54010f5123f0)
+
+`Base64Url.DecodeFromChars` used `Unsafe.Add` with raw char values as indices into a 256-element decoding map — without first checking whether `DecodeRemaining` had returned an error. Non-ASCII characters (value > 255) produced an out-of-bounds read, causing an `AccessViolationException` on .NET 8.
+
+The vulnerable code (simplified):
+
+```csharp
+int i0 = decoder.DecodeRemaining(srcEnd, ref decodingMap, remaining, out uint t2, out uint t3);
+
+// BUG: i0 < 0 means invalid input, but this was not checked before proceeding
+
+byte* destMax = destBytes + (uint)destLength;
+
+if (!decoder.IsValidPadding(t3))
+{
+    int i2 = Unsafe.Add(ref decodingMap, (IntPtr)t2);  // t2 is unvalidated — OOB read
+    int i3 = Unsafe.Add(ref decodingMap, (IntPtr)t3);  // t3 is unvalidated — OOB read
+    // ...
+}
+```
+
+The fix — five lines of safe code:
+
+```csharp
+int i0 = decoder.DecodeRemaining(srcEnd, ref decodingMap, remaining, out uint t2, out uint t3);
+
+if (i0 < 0)
+{
+    goto InvalidDataExit;
+}
+```
+
+**Why this matters:** A missing safe guard — a single `if` check — allowed unvalidated input to reach `Unsafe.Add`, turning a simple input validation bug into a memory safety vulnerability. The fix was not in the unsafe code itself but in the safe code that should have guarded it.
+
+---
+
+### CVE-2025-21171 — Wrong comparison operator
+
+**CVE:** [CVE-2025-21171](https://github.com/dotnet/announcements/issues/340) — Buffer overflow (CWE-122) in .NET, Remote Code Execution  
+**File:** src/libraries/System.Private.CoreLib/src/System/Convert.cs  
+**Fix:** [dotnet/runtime#110228](https://github.com/dotnet/runtime/commit/9da8c6a4a6ea03054e776275d3fd5c752897842e)
+
+`Convert.TryToHexString` had a bounds check with the comparison operator pointing the wrong direction. The check was intended to verify that the destination span was large enough to hold the hex output, but `>` was used instead of `<`.
+
+The vulnerable code:
+
+```csharp
+public static bool TryToHexString(ReadOnlySpan<byte> source, Span<char> destination, out int charsWritten)
+{
+    if (source.Length == 0)
+    {
+        charsWritten = 0;
+        return true;
+    }
+    else if (source.Length > int.MaxValue / 2 || destination.Length > source.Length * 2) // BUG: > should be <
+    {
+        charsWritten = 0;
+        return false;
+    }
+
+    // proceeds to write hex chars into destination...
+}
+```
+
+The fix — a single character:
+
+```csharp
+    else if (source.Length > int.MaxValue / 2 || destination.Length < source.Length * 2)
+```
+
+**Why this matters:** A one-character typo in a bounds check — `>` instead of `<` — inverted the guard logic. Instead of rejecting destinations that were too small, it rejected destinations that were too large. Small destinations passed the check and the subsequent write overflowed the buffer. This is a CWE-122 (heap buffer overflow) that enabled remote code execution, caused by a single wrong character in safe code.
