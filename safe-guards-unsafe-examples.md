@@ -1,5 +1,57 @@
 # Safe Code Guards Unsafe Block — Real-World Examples
 
+## The Same Algorithm, Three Languages
+
+Bounds-checked element access is the most fundamental safety boundary operation. All three languages implement it the same way: validate the index in safe code, then return a reference via unsafe pointer arithmetic.
+
+### C# — `Span<T>` indexer
+
+**File:** src/libraries/System.Private.CoreLib/src/System/Span.cs (dotnet/runtime)
+
+```csharp
+public ref T this[int index]
+{
+    get
+    {
+        if ((uint)index >= (uint)_length)
+            ThrowHelper.ThrowIndexOutOfRangeException();
+        return ref Unsafe.Add(ref _reference, (nint)(uint)index);
+    }
+}
+```
+
+### Rust — `[T]` slice indexing
+
+**File:** library/core/src/slice/index.rs (rust-lang/rust)
+
+```rust
+fn get(self, slice: &[T]) -> Option<&T> {
+    if self < slice.len() {
+        // SAFETY: `self` is checked to be in bounds.
+        unsafe { Some(slice_get_unchecked(slice, self)) }
+    } else {
+        None
+    }
+}
+```
+
+### Swift — `InputSpan<T>` subscript
+
+**File:** Sources/ContainersPreview/Types/InputSpan.swift (apple/swift-collections)
+
+```swift
+public subscript(_ index: Index) -> Element {
+    unsafeAddress {
+      precondition(indices.contains(index), "Index out of bounds")
+      return unsafe UnsafePointer(_unsafeAddressOfElement(uncheckedOffset: index))
+    }
+}
+```
+
+**Why this matters:** Three languages, three teams, the same conclusion: a safe bounds check is the only thing between a valid element access and undefined behavior. The unsafe pointer arithmetic is identical in purpose — offset a base pointer by an index — and the safe guard is what makes it sound. Remove or weaken the check in any of them and the result is an out-of-bounds read or write.
+
+This is the safety boundary pattern. The safety boundary function is the one that performs the check and calls the unsafe operation. It is the most critical audit target in all three codebases — and in none of them is it marked.
+
 ## C# / .NET Runtime (dotnet/runtime)
 
 > **Note:** Modern .NET avoids literal `unsafe { }` blocks in favor of `Unsafe.*` APIs
