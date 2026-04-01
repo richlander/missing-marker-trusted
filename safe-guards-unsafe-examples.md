@@ -230,66 +230,52 @@ pub fn split_once<P: Pattern>(&self, delimiter: P) -> Option<(&'_ str, &'_ str)>
 
 [apple/swift-collections](https://github.com/apple/swift-collections) is one of the first libraries to adopt [SE-0458](https://github.com/swiftlang/swift-evolution/blob/main/proposals/0458-strict-memory-safety.md) strict memory safety annotations.
 
-### [Swift] Deque+Extras.swift — `Deque.init(unsafeUninitializedCapacity:initializingWith:)`
-**File:** Sources/DequeModule/Deque/Deque+Extras.swift
-**Pattern:** After calling a user-provided closure that writes into uninitialized storage, preconditions verify that the reported count doesn't exceed capacity and that the closure didn't relocate storage.
+### [Swift] InputSpan.swift — `subscript(_:)`
+**File:** Sources/ContainersPreview/Types/InputSpan.swift
+**Pattern:** Bounds-checks the index against the initialized range before returning a raw pointer to the element via `_unsafeAddressOfElement`.
 
 ```swift
-@inlinable
-public init(
-  unsafeUninitializedCapacity capacity: Int,
-  initializingWith initializer:
-    (inout UnsafeMutableBufferPointer<Element>, inout Int) throws -> Void
-) rethrows {
-  self._storage = .init(minimumCapacity: capacity)
-  try _storage.update { handle in
-    handle.startSlot = .zero
-    var count = 0
-    var buffer = handle.mutableBuffer(for: .zero ..< _Slot(at: capacity))
-    defer {
-      precondition(count <= capacity,
-        "Initialized count set to greater than specified capacity")
-      let b = handle.mutableBuffer(for: .zero ..< _Slot(at: capacity))
-      precondition(buffer.baseAddress == b.baseAddress && buffer.count == b.count,
-        "Initializer relocated Deque storage")
-      handle.count = count
+public subscript(_ index: Index) -> Element {
+    unsafeAddress {
+      precondition(indices.contains(index), "Index out of bounds")
+      return unsafe UnsafePointer(_unsafeAddressOfElement(uncheckedOffset: index))
     }
-    try initializer(&buffer, &count)
+
+    @_lifetime(self: copy self)
+    unsafeMutableAddress {
+      precondition(indices.contains(index), "Index out of bounds")
+      return unsafe _unsafeAddressOfElement(uncheckedOffset: index)
+    }
   }
-}
 ```
 
-**Why this matters:** If the initializer lies about how many elements it wrote, or if storage gets relocated during the call, later reads would observe uninitialized or invalid memory. The safe preconditions in the `defer` block are the only defense.
+**Why this matters:** Without the `precondition`, an out-of-bounds index would produce a raw pointer into uninitialized or unowned memory — reads would return garbage, writes would corrupt the heap. The safe bounds check is the only thing between the caller and undefined behavior. Note the companion `subscript(unchecked:)` which skips this check and is marked `@unsafe`.
 
 ---
 
-### [Swift] Deque+Collection.swift — `Deque.withContiguousMutableStorageIfAvailable`
-**File:** Sources/DequeModule/Deque/Deque+Collection.swift
-**Pattern:** Verifies the deque's storage is contiguous before exposing an `UnsafeMutableBufferPointer`, then preconditions that the closure didn't swap out the buffer.
+### [Swift] InputSpan.swift — `swapAt(_:_:)`
+**File:** Sources/ContainersPreview/Types/InputSpan.swift
+**Pattern:** Validates both indices against the initialized range, then delegates to the unchecked `@unsafe` variant which does raw pointer moves.
 
 ```swift
-@inlinable
-public mutating func withContiguousMutableStorageIfAvailable<R>(
-  _ body: (inout UnsafeMutableBufferPointer<Element>) throws -> R
-) rethrows -> R? {
-  _storage.ensureUnique()
-  return try _storage.update { handle in
-    let endSlot = handle.startSlot.advanced(by: handle.count)
-    guard endSlot.position <= handle.capacity else {
-      return nil
-    }
-    let original = handle.mutableBuffer(for: handle.startSlot ..< endSlot)
-    var extract = original
-    defer {
-      precondition(extract.baseAddress == original.baseAddress && extract.count == original.count,
-                   "Closure must not replace the provided buffer")
-    }
-    return try body(&extract)
+public mutating func swapAt(_ i: Index, _ j: Index) {
+    precondition(indices.contains(Index(i)))
+    precondition(indices.contains(Index(j)))
+    unsafe swapAt(unchecked: i, unchecked: j)
   }
-}
+
+  @unsafe
+  public mutating func swapAt(unchecked i: Index, unchecked j: Index) {
+    guard i != j else { return }
+    let pi = unsafe _unsafeAddressOfElement(uncheckedOffset: i)
+    let pj = unsafe _unsafeAddressOfElement(uncheckedOffset: j)
+    let temporary = unsafe pi.move()
+    unsafe pi.initialize(to: pj.move())
+    unsafe pj.initialize(to: consume temporary)
+  }
 ```
 
-**Why this matters:** Without the contiguity guard, the pointer could cover only part of the deque's wrapped ring buffer. Without the postcondition, the closure could replace the buffer pointer and invalidate the reference — exposing dangling or out-of-bounds memory to subsequent operations.
+**Why this matters:** The safe `swapAt` validates both indices before calling the unsafe variant that performs raw pointer `move()` and `initialize(to:)` operations. Passing an out-of-bounds index to the unchecked version would move from uninitialized memory or overwrite an unrelated heap object. This is a direct parallel to Rust's `[T]::swap` — safe indexing guards unsafe pointer operations.
 
 ---
 
