@@ -50,7 +50,7 @@ public subscript(_ index: Index) -> Element {
 
 **Why this matters:** Three languages, three teams, the same conclusion: a safe bounds check is the only thing between a valid element access and undefined behavior. The unsafe pointer arithmetic is identical in purpose — offset a base pointer by an index — and the safe guard is what makes it sound. Remove or weaken the check in any of them and the result is an out-of-bounds read or write.
 
-This is the safety boundary pattern. The safety boundary function is the one that performs the check and calls the unsafe operation. It is the most critical audit target in all three codebases — and in none of them is it marked.
+This is the safety boundary pattern. The safety boundary function is the one that performs the check and calls the unsafe operation. It is the most critical audit target in all three codebases — and in none of these safe-by-default languages is it marked. D's `@trusted` is the sole prior art for explicit marking, but D is unsafe-by-default, so its safety boundaries only cover the `@safe` subset.
 
 ## C# / .NET Runtime (dotnet/runtime)
 
