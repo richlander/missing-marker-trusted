@@ -1,4 +1,4 @@
-# Safe Code Guards Unsafe Block — Real-World Examples
+# Notable Patterns in Safety-Boundary Code
 
 ## The Same Algorithm, Three Languages
 
@@ -6,7 +6,7 @@ Bounds-checked element access is the most fundamental safety boundary operation.
 
 ### C# — `Span<T>` indexer
 
-**File:** src/libraries/System.Private.CoreLib/src/System/Span.cs (dotnet/runtime)
+**File:** [src/libraries/System.Private.CoreLib/src/System/Span.cs#L148](https://github.com/dotnet/runtime/blob/a8836bb928cbb045bb19a1a2a3353f4aa23302f4/src/libraries/System.Private.CoreLib/src/System/Span.cs#L148) (dotnet/runtime)
 
 ```csharp
 public ref T this[int index]
@@ -22,7 +22,7 @@ public ref T this[int index]
 
 ### Rust — `[T]` slice indexing
 
-**File:** library/core/src/slice/index.rs (rust-lang/rust)
+**File:** [library/core/src/slice/index.rs#L218](https://github.com/rust-lang/rust/blob/e6b64a2f4c696b840f8a384ec28690eed6a5d267/library/core/src/slice/index.rs#L218) (rust-lang/rust)
 
 ```rust
 fn get(self, slice: &[T]) -> Option<&T> {
@@ -37,7 +37,7 @@ fn get(self, slice: &[T]) -> Option<&T> {
 
 ### Swift — `InputSpan<T>` subscript
 
-**File:** Sources/ContainersPreview/Types/InputSpan.swift (apple/swift-collections)
+**File:** [Sources/ContainersPreview/Types/InputSpan.swift#L246](https://github.com/apple/swift-collections/blob/63bfbed01a39126550b0f1ac87ac48027697831a/Sources/ContainersPreview/Types/InputSpan.swift#L246) (apple/swift-collections)
 
 ```swift
 public subscript(_ index: Index) -> Element {
@@ -58,7 +58,7 @@ This is the safety boundary pattern. The safety boundary function is the one tha
 > and `Buffer.Memmove`, which are equally unchecked — the pattern is the same.
 
 ### [C#] Span.cs — `Span<T>.Slice`
-**File:** src/libraries/System.Private.CoreLib/src/System/Span.cs (lines 414-431)
+**File:** [src/libraries/System.Private.CoreLib/src/System/Span.cs#L414](https://github.com/dotnet/runtime/blob/a8836bb928cbb045bb19a1a2a3353f4aa23302f4/src/libraries/System.Private.CoreLib/src/System/Span.cs#L414)
 **Pattern:** Bounds-checks `start + length` against `_length` using overflow-safe unsigned arithmetic, then constructs a new span via unchecked `Unsafe.Add`.
 
 ```csharp
@@ -84,7 +84,7 @@ public Span<T> Slice(int start, int length)
 ---
 
 ### [C#] Buffer.cs — `Buffer.BlockCopy`
-**File:** src/libraries/System.Private.CoreLib/src/System/Buffer.cs (lines 18-55)
+**File:** [src/libraries/System.Private.CoreLib/src/System/Buffer.cs#L18](https://github.com/dotnet/runtime/blob/a8836bb928cbb045bb19a1a2a3353f4aa23302f4/src/libraries/System.Private.CoreLib/src/System/Buffer.cs#L18)
 **Pattern:** Validates nulls, primitive-array types, negative offsets, and total byte ranges, then calls `Memmove` with unchecked pointer arithmetic.
 
 ```csharp
@@ -121,7 +121,7 @@ public static void BlockCopy(Array src, int srcOffset, Array dst, int dstOffset,
 ---
 
 ### [C#] String.cs — `String.CopyTo`
-**File:** src/libraries/System.Private.CoreLib/src/System/String.cs (lines 427-441)
+**File:** [src/libraries/System.Private.CoreLib/src/System/String.cs#L427](https://github.com/dotnet/runtime/blob/a8836bb928cbb045bb19a1a2a3353f4aa23302f4/src/libraries/System.Private.CoreLib/src/System/String.cs#L427)
 **Pattern:** Five separate argument validations guard a single unchecked `Buffer.Memmove` call on the string's raw internal char data.
 
 ```csharp
@@ -146,7 +146,7 @@ public void CopyTo(int sourceIndex, char[] destination, int destinationIndex, in
 ---
 
 ### [C#] MemoryExtensions.cs — `string.AsSpan(start, length)`
-**File:** src/libraries/System.Private.CoreLib/src/System/MemoryExtensions.cs (lines 192-211)
+**File:** [src/libraries/System.Private.CoreLib/src/System/MemoryExtensions.cs#L192](https://github.com/dotnet/runtime/blob/a8836bb928cbb045bb19a1a2a3353f4aa23302f4/src/libraries/System.Private.CoreLib/src/System/MemoryExtensions.cs#L192)
 **Pattern:** Null-checks the string and bounds-checks the slice range before constructing a `ReadOnlySpan<char>` from the string's raw internal data via `Unsafe.Add`.
 
 ```csharp
@@ -178,7 +178,7 @@ public static ReadOnlySpan<char> AsSpan(this string? text, int start, int length
 ## Rust Standard Library (rust-lang/rust)
 
 ### [Rust] vec/mod.rs — `Vec::swap_remove`
-**File:** library/alloc/src/vec/mod.rs (lines 2216-2238)
+**File:** [library/alloc/src/vec/mod.rs#L2224](https://github.com/rust-lang/rust/blob/e6b64a2f4c696b840f8a384ec28690eed6a5d267/library/alloc/src/vec/mod.rs#L2224)
 **Pattern:** Bounds-checks `index < len`, then enters `unsafe` to do raw pointer read/copy and `set_len`.
 
 ```rust
@@ -206,8 +206,27 @@ pub fn swap_remove(&mut self, index: usize) -> T {
 
 ---
 
+### [Rust] vec/mod.rs — `Vec::set_len`
+**File:** [library/alloc/src/vec/mod.rs#L2188](https://github.com/rust-lang/rust/blob/e6b64a2f4c696b840f8a384ec28690eed6a5d267/library/alloc/src/vec/mod.rs#L2188)
+**Pattern:** An `unsafe fn` protects a private field on [`Vec`](https://github.com/rust-lang/rust/blob/e6b64a2f4c696b840f8a384ec28690eed6a5d267/library/alloc/src/vec/mod.rs#L438-L441) by enforcing a language-backed but convention-driven invariant: `len <= capacity()`.
+
+```rust
+pub unsafe fn set_len(&mut self, new_len: usize) {
+    ub_checks::assert_unsafe_precondition!(
+        check_library_ub,
+        "Vec::set_len requires that new_len <= capacity()",
+        (new_len: usize = new_len, capacity: usize = self.capacity()) => new_len <= capacity
+    );
+    self.len = new_len;
+}
+```
+
+**Why this matters:** `self.len` is just a normal private field assignment inside the standard library, but writing the wrong value would break `Vec`'s core representation invariant and make later safe operations unsound. Rust does enforce the API boundary — external callers cannot mutate `len` directly, and `set_len` is explicitly `unsafe fn` — but the invariant itself is not fully enforced by the type system at the write site. This is a notable Rust pattern: the rule is language-backed and documented, yet correctness still depends on convention, review, and the caller honoring the contract.
+
+---
+
 ### [Rust] slice/mod.rs — `[T]::swap`
-**File:** library/core/src/slice/mod.rs (lines 905-917)
+**File:** [library/core/src/slice/mod.rs#L905](https://github.com/rust-lang/rust/blob/e6b64a2f4c696b840f8a384ec28690eed6a5d267/library/core/src/slice/mod.rs#L905)
 **Pattern:** Safe indexing (`self[a]`, `self[b]`) panics on out-of-bounds, producing raw pointers that are then swapped via `unsafe { ptr::swap }`.
 
 ```rust
@@ -227,7 +246,7 @@ pub const fn swap(&mut self, a: usize, b: usize) {
 ---
 
 ### [Rust] slice/mod.rs — `[T]::split_at_checked`
-**File:** library/core/src/slice/mod.rs (lines 2153-2161)
+**File:** [library/core/src/slice/mod.rs#L2153](https://github.com/rust-lang/rust/blob/e6b64a2f4c696b840f8a384ec28690eed6a5d267/library/core/src/slice/mod.rs#L2153)
 **Pattern:** A single `mid <= self.len()` check guards `split_at_unchecked`, which does raw pointer arithmetic.
 
 ```rust
@@ -247,7 +266,7 @@ pub const fn split_at_checked(&self, mid: usize) -> Option<(&[T], &[T])> {
 ---
 
 ### [Rust] string.rs — `String::split_off`
-**File:** library/alloc/src/string.rs (lines 1912-1916)
+**File:** [library/alloc/src/string.rs#L1912](https://github.com/rust-lang/rust/blob/e6b64a2f4c696b840f8a384ec28690eed6a5d267/library/alloc/src/string.rs#L1912)
 **Pattern:** Asserts the split point is a UTF-8 char boundary before calling `from_utf8_unchecked`.
 
 ```rust
@@ -263,7 +282,7 @@ pub fn split_off(&mut self, at: usize) -> String {
 ---
 
 ### [Rust] str/mod.rs — `str::split_once`
-**File:** library/core/src/str/mod.rs (lines 1966-1970)
+**File:** [library/core/src/str/mod.rs#L1966](https://github.com/rust-lang/rust/blob/e6b64a2f4c696b840f8a384ec28690eed6a5d267/library/core/src/str/mod.rs#L1966)
 **Pattern:** The `Searcher` API guarantees valid byte indices; `get_unchecked` trusts those indices to avoid redundant bounds checks.
 
 ```rust
@@ -283,7 +302,7 @@ pub fn split_once<P: Pattern>(&self, delimiter: P) -> Option<(&'_ str, &'_ str)>
 [apple/swift-collections](https://github.com/apple/swift-collections) is one of the first libraries to adopt [SE-0458](https://github.com/swiftlang/swift-evolution/blob/main/proposals/0458-strict-memory-safety.md) strict memory safety annotations.
 
 ### [Swift] InputSpan.swift — `subscript(_:)`
-**File:** Sources/ContainersPreview/Types/InputSpan.swift
+**File:** [Sources/ContainersPreview/Types/InputSpan.swift#L246](https://github.com/apple/swift-collections/blob/63bfbed01a39126550b0f1ac87ac48027697831a/Sources/ContainersPreview/Types/InputSpan.swift#L246)
 **Pattern:** Bounds-checks the index against the initialized range before returning a raw pointer to the element via `_unsafeAddressOfElement`.
 
 ```swift
@@ -306,7 +325,7 @@ public subscript(_ index: Index) -> Element {
 ---
 
 ### [Swift] InputSpan.swift — `swapAt(_:_:)`
-**File:** Sources/ContainersPreview/Types/InputSpan.swift
+**File:** [Sources/ContainersPreview/Types/InputSpan.swift#L284](https://github.com/apple/swift-collections/blob/63bfbed01a39126550b0f1ac87ac48027697831a/Sources/ContainersPreview/Types/InputSpan.swift#L284)
 **Pattern:** Validates both indices against the initialized range, then delegates to the unchecked `@unsafe` variant which does raw pointer moves.
 
 ```swift
@@ -330,83 +349,3 @@ public mutating func swapAt(_ i: Index, _ j: Index) {
 **Why this matters:** The safe `swapAt` validates both indices before calling the unsafe variant that performs raw pointer `move()` and `initialize(to:)` operations. Passing an out-of-bounds index to the unchecked version would move from uninitialized memory or overwrite an unrelated heap object. This is a direct parallel to Rust's `[T]::swap` — safe indexing guards unsafe pointer operations.
 
 ---
-
-## What Goes Wrong: CVE-2026-26127
-
-The examples above show correct guards. Below are real cases where a missing or incorrect guard caused a memory safety vulnerability.
-
-### CVE-2026-26127 — Missing guard
-
-**CVE:** [CVE-2026-26127](https://github.com/dotnet/announcements/issues/384) — Out-of-bounds read in .NET  
-**File:** src/libraries/System.Private.CoreLib/src/System/Buffers/Text/Base64Helper/Base64DecoderHelper.cs  
-**Fix:** [dotnet/runtime#124540](https://github.com/dotnet/runtime/commit/19c07820cb72aafc554c3bc8fe3c54010f5123f0)
-
-`Base64Url.DecodeFromChars` used `Unsafe.Add` with raw char values as indices into a 256-element decoding map — without first checking whether `DecodeRemaining` had returned an error. Non-ASCII characters (value > 255) produced an out-of-bounds read, causing an `AccessViolationException` on .NET 8.
-
-The vulnerable code (simplified):
-
-```csharp
-int i0 = decoder.DecodeRemaining(srcEnd, ref decodingMap, remaining, out uint t2, out uint t3);
-
-// BUG: i0 < 0 means invalid input, but this was not checked before proceeding
-
-byte* destMax = destBytes + (uint)destLength;
-
-if (!decoder.IsValidPadding(t3))
-{
-    int i2 = Unsafe.Add(ref decodingMap, (IntPtr)t2);  // t2 is unvalidated — OOB read
-    int i3 = Unsafe.Add(ref decodingMap, (IntPtr)t3);  // t3 is unvalidated — OOB read
-    // ...
-}
-```
-
-The fix — five lines of safe code:
-
-```csharp
-int i0 = decoder.DecodeRemaining(srcEnd, ref decodingMap, remaining, out uint t2, out uint t3);
-
-if (i0 < 0)
-{
-    goto InvalidDataExit;
-}
-```
-
-**Why this matters:** A missing safe guard — a single `if` check — allowed unvalidated input to reach `Unsafe.Add`, turning a simple input validation bug into a memory safety vulnerability. The fix was not in the unsafe code itself but in the safe code that should have guarded it.
-
----
-
-### CVE-2025-21171 — Wrong comparison operator
-
-**CVE:** [CVE-2025-21171](https://github.com/dotnet/announcements/issues/340) — Buffer overflow (CWE-122) in .NET, Remote Code Execution  
-**File:** src/libraries/System.Private.CoreLib/src/System/Convert.cs  
-**Fix:** [dotnet/runtime#110228](https://github.com/dotnet/runtime/commit/9da8c6a4a6ea03054e776275d3fd5c752897842e)
-
-`Convert.TryToHexString` had a bounds check with the comparison operator pointing the wrong direction. The check was intended to verify that the destination span was large enough to hold the hex output, but `>` was used instead of `<`.
-
-The vulnerable code:
-
-```csharp
-public static bool TryToHexString(ReadOnlySpan<byte> source, Span<char> destination, out int charsWritten)
-{
-    if (source.Length == 0)
-    {
-        charsWritten = 0;
-        return true;
-    }
-    else if (source.Length > int.MaxValue / 2 || destination.Length > source.Length * 2) // BUG: > should be <
-    {
-        charsWritten = 0;
-        return false;
-    }
-
-    // proceeds to write hex chars into destination...
-}
-```
-
-The fix — a single character:
-
-```csharp
-    else if (source.Length > int.MaxValue / 2 || destination.Length < source.Length * 2)
-```
-
-**Why this matters:** A one-character typo in a bounds check — `>` instead of `<` — inverted the guard logic. Instead of rejecting destinations that were too small, it rejected destinations that were too large. Small destinations passed the check and the subsequent write overflowed the buffer. This is a CWE-122 (heap buffer overflow) that enabled remote code execution, caused by a single wrong character in safe code.
