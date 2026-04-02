@@ -12,7 +12,7 @@ The model distinguishes three roles:
 - `safe` signature — safe to call; contains or discharges that obligation with guards and validation
 - `unsafe {}` block — implementation-local region where the dangerous operation actually occurs
 
-The supporting documents below deepen the case. [CVE analysis](https://github.com/richlander/missing-marker-trusted/blob/main/cve-analysis.md) examines recent .NET cases where the bug was in the guard or validation around an unsafe operation, not only in the primitive itself. [Language comparison](https://github.com/richlander/missing-marker-trusted/blob/main/language-comparison.md) compares how different language designs expose or hide these review surfaces.
+The supporting documents below deepen the case. [CVE analysis](https://github.com/richlander/missing-marker-trusted/blob/main/cve-analysis.md) examines recent .NET cases where the bug was in the guard or validation around an unsafe operation, not only in the primitive itself. [Language comparison](https://github.com/richlander/missing-marker-trusted/blob/main/language-comparison.md) compares how different language designs expose or hide these review surfaces, using grep as a uniform proxy for complexity.
 
 ## Examples
 
@@ -97,7 +97,7 @@ pub const fn split_at_checked(&self, mid: usize) -> Option<(&[T], &[T])> {
 
 The fix timeline shows three stages:
 
-1. **Insufficient guards over an unsafe resource** — the original code relied on `Debug.Assert` (stripped in release builds) to guard `_blocks[]` indexing. No runtime check prevented out-of-bounds writes.
+1. **Insufficient guards over an unsafe resource** — the original code relied on `Debug.Assert` (stripped in release builds) to guard `_blocks[]` indexing. No runtime check prevented out-of-bounds writes. Rust seems to rely heavily on its `assert` macro, which seems highly ergonmic. An `Assert.Test()` method could be used to similar effect, particularly for methods that replicate tests across `Debug.Assert` and runtime `if` statements.
 2. **Fully guarded** — the [CVE fix](https://github.com/dotnet/runtime/commit/173b4b8a96434a3eedaabca529a2083b16d616f3) added runtime bounds checks (`unchecked((uint)(length)) >= MaxBlockCount`) across six methods, but kept the `fixed` buffer and `unsafe ref struct` declaration.
 3. **Safe abstraction** — a [later modernization](https://github.com/dotnet/runtime/commit/e155b45eb750ad5ab1a8060ba088493354d4ccb3) replaced `private fixed uint _blocks[MaxBlockCount]` with `[InlineArray]` and removed `unsafe` from the type entirely. The compiler now lowers `_blocks[i]` to bounds-checked `Span<T>` access — the manual guards are no longer the last line of defense.
 
