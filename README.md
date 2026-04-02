@@ -1,8 +1,8 @@
 # Missing Safety Marker Proposal
 
-Memory safety v2 is one of the most high-stakes features that we've taken on. It directly relates to the most foundational value propositions of the language and runtime and to other industry languages. It's where we have to adopt our most strict and critical design sensibilities.
+Memory safety v2 is one of the highest-stakes features we have taken on. It bears directly on the most foundational value propositions of the language and runtime and on C#'s relationship to other industry languages. It demands our strictest design sensibilities.
 
-This proposal adds a `safe` keyword to C# so that safety boundaries are explicitly marked, grep-discoverable, lossless under `git blame`, and exhaustive roots of the audit graph. The addition of the `safe` keyword makes all unsafe code symmetric, marked with intent not via absense. It is important remember that safe boundary methods are unsafe code, made safe via a claim not compiler validation.
+This proposal adds a `safe` keyword to C# so that safety boundaries are explicitly marked, grep-discoverable, lossless under `git blame`, and exhaustive roots of the audit graph. The addition of `safe` makes safety markings symmetric: code participating in unsafety is marked with intent, not inferred by absence. It is important to remember that safe boundary methods still participate in unsafe code; they are made safe by a claim, not by compiler validation alone.
 
 The `CopyTo` method is a concrete example of a method that would benefit from the `safe` keyword.
 
@@ -23,9 +23,9 @@ public void CopyTo(int sourceIndex, char[] destination, int destinationIndex, in
 }
 ```
 
-`CopyTo` upholds safety with a set of `ThrowIfNull` guards. They are safe precondition checks that justify the internal unsafe operation. In contrast, [Buffer.Memmove](https://github.com/dotnet/runtime/blob/0a726991ba412269ae8bb54ed3aa829466e0d0c8/src/libraries/System.Private.CoreLib/src/System/Buffer.cs#L134) does not discharge obligations as broadly nor with a dependency on safe code. `Memmove` is unsafe code, even though that is not obvious in the example.
+`CopyTo` upholds safety with a set of `ThrowIfNull` and range guards. These are safe precondition checks that justify the internal unsafe operation. By contrast, [Buffer.Memmove](https://github.com/dotnet/runtime/blob/0a726991ba412269ae8bb54ed3aa829466e0d0c8/src/libraries/System.Private.CoreLib/src/System/Buffer.cs#L134) sits closer to the sharp edge: it does not discharge the same obligations as broadly, nor does it depend on safe helper code in the same way. `Memmove` is unsafe code, even if that is not obvious in the example.
 
-Note: C#, at the time of writing, does not force unsafe propogation, hence the lack of `unsafe` in `CopyTo`. This situation is resolved by the [CallerUnsafe proposal](https://github.com/dotnet/designs/blob/main/accepted/2025/memory-safety/caller-unsafe.md).
+Note: C#, at the time of writing, does not force unsafe propagation, hence the lack of `unsafe` in `CopyTo`. This situation is addressed by the [CallerUnsafe proposal](https://github.com/dotnet/designs/blob/main/accepted/2025/memory-safety/caller-unsafe.md).
 
 The following Rust code is similar:
 
@@ -39,7 +39,7 @@ The following Rust code is similar:
  }
 ```
 
-The runtime `assert!` calls in this function play a role analogous to `ThrowIfNull` and related guards in C#. The calls to `to_physical_idx` are also part of that proof. They are safe function calls whose correctness preserves the _fragile balance_ on which the safety claim depends. An explicit `safe` marker on `swap` would make it easier to algorithmically determine which safe functions participate in this safety claim. This same fragile balance pattern is also common in the .NET runtime libraries
+The runtime `assert!` calls in this function play a role analogous to `ThrowIfNull` and related guards in C#: they are safe precondition checks that justify the internal unsafe operation. The calls to `to_physical_idx` are also part of that proof. They are safe method calls whose correctness preserves the _fragile balance_ on which the safety claim depends. An explicit `safe` marker on `swap` would make it easier to determine algorithmically which safe functions participate in this safety claim. This same fragile-balance pattern is also common in the .NET runtime libraries.
 
 `safe` therefore indicates three starting points:
 
@@ -47,11 +47,11 @@ The runtime `assert!` calls in this function play a role analogous to `ThrowIfNu
 - Where the unsafe call graph can be discovered.
 - Where the safe call graph participating in safety validation can be discovered.
 
-All of that can be done with a sophisticated language parser API, like Roslyn. The more explicit the safety markings are, the more safety review can succeed solely by reading code. It's fudamentally a statement about complexity and the need for inference and deep language expertise.
+All of that can be done with a sophisticated compiler and semantic analysis API, like Roslyn. The more explicit the safety markings are, the more safety review can succeed by code inspection alone. It is fundamentally a statement about complexity and about reducing the amount of inference and deep language expertise required.
 
-No safe-by-default language marks these boundary methods today, not C#, Rust, or Swift. Boundary methods are exclusively represented by the absense of an `unsafe` signature marking, as can be seen most clearly in the Rust example. The [C# CallerUnsafe](https://github.com/dotnet/designs/blob/main/accepted/2025/memory-safety/caller-unsafe.md) proposal adds propogation, but adopts the same "absense is the marker for safety" approach. D's `@trusted` is the sole prior art, but D is unsafe-by-default, so its safety boundaries only cover the `@safe` subset so do not establish an exhaustive audit graph.
+No safe-by-default language marks these boundary methods today, not C#, Rust, or Swift. Boundary methods are instead represented by the absence of an `unsafe` signature marking, as can be seen most clearly in the Rust example. The [C# CallerUnsafe](https://github.com/dotnet/designs/blob/main/accepted/2025/memory-safety/caller-unsafe.md) proposal adds propagation, but adopts the same "absence is the marker for safety" approach.
 
-The problem with absense being meaningful is that a single bit encodes a ternary state: unsafe, safe by best-effort intention, or safe by accident or malevolent intention. The addition of a `safe` keyword explictly reminds code writers and reviewers to match claim with code. Explicit `safe`/`unsafe` markings and unsafe propogation are likely our best leverage points for AI security migration (to the new model) and ongoing review at scale.
+The problem with absence being meaningful is that a single bit encodes a ternary state: unsafe, safe by best-effort intention, or safe by accident or malicious intention. The addition of a `safe` keyword explicitly reminds code writers and reviewers to match claim with code. Explicit `safe`/`unsafe` markings and unsafe propagation are likely our best leverage points for AI security migration (to the new model) and ongoing review at scale.
 
 This proposal includes additional evidence and context that supports the idea that `safe` is beneficial. Part of that is a scoring scheme, based on the documented findings.
 
@@ -61,7 +61,6 @@ This proposal includes additional evidence and context that supports the idea th
 | Rust | **77.5%** |
 | C# + `unsafe` + `safe` (opt-in) | **72.5%** |
 | Swift | **50.0%** |
-| D | **40.0%** |
 | C# (current) | **35.0%** |
 
 The scoring scheme boils down to three simple rules:
