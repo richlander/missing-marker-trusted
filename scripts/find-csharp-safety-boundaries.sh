@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 #
-# find-csharp-trust-boundaries.sh
+# find-csharp-safety-boundaries.sh
 #
-# Find safe methods that contain unsafe {} blocks — C#'s implicit trust
+# Find safe methods that contain unsafe {} blocks — C#'s implicit safety
 # boundary. This is what D marks explicitly with @trusted.
 #
-# A trust boundary is a method NOT marked unsafe, NOT inside an unsafe
+# A safety boundary is a method NOT marked unsafe, NOT inside an unsafe
 # type, that contains unsafe { } blocks in its body.
 #
 # No LSP. Just grep + awk.
@@ -20,8 +20,8 @@
 #   - This is a triage tool, not an authoritative audit tool
 #
 # Usage:
-#   ./find-csharp-trust-boundaries.sh [dir]
-#   ./find-csharp-trust-boundaries.sh ~/git/runtime/src/libraries
+#   ./find-csharp-safety-boundaries.sh [dir]
+#   ./find-csharp-safety-boundaries.sh ~/git/runtime/src/libraries
 
 set -euo pipefail
 

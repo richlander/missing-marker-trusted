@@ -50,7 +50,7 @@ public subscript(_ index: Index) -> Element {
 
 **Why this matters:** Three languages, three teams, the same conclusion: a safe bounds check is the only thing between a valid element access and undefined behavior. The unsafe pointer arithmetic is identical in purpose — offset a base pointer by an index — and the safe guard is what makes it sound. Remove or weaken the check in any of them and the result is an out-of-bounds read or write.
 
-This is the safety boundary pattern. The safety boundary function is the one that performs the check and calls the unsafe operation. It is the most critical audit target in all three codebases — and in none of these safe-by-default languages is it marked. D's `@trusted` is the sole prior art for explicit marking, but D is unsafe-by-default, so its safety boundaries only cover the `@safe` subset.
+This is the safety boundary pattern. The safety boundary function is the one that performs the check and calls the unsafe operation. It is the most critical audit target in all three codebases — and in none of these safe-by-default languages is it marked. D's `@trusted` is the sole prior art for explicit marking, but D is unsafe-by-default, so its safety boundaries only cover the `@safe` subset. When these guards fail, the result is a CVE — see the [CVE analysis](cve-analysis.md) for real examples of this pattern breaking.
 
 ## C# / .NET Runtime (dotnet/runtime)
 
@@ -349,3 +349,9 @@ public mutating func swapAt(_ i: Index, _ j: Index) {
 **Why this matters:** The safe `swapAt` validates both indices before calling the unsafe variant that performs raw pointer `move()` and `initialize(to:)` operations. Passing an out-of-bounds index to the unchecked version would move from uninitialized memory or overwrite an unrelated heap object. This is a direct parallel to Rust's `[T]::swap` — safe indexing guards unsafe pointer operations.
 
 ---
+
+## The common thread
+
+Every example above follows the same structure: safe code validates inputs, then delegates to an unsafe operation that trusts the validation. The safety boundary is the function where that handoff occurs. None of these functions are marked in any safe-by-default language — they are invisible to grep and indistinguishable from functions that are safe all the way down. An explicit `safe` keyword would make every one of these functions discoverable.
+
+The [CVE analysis](cve-analysis.md) shows what happens when these guards fail. The [language comparison](language-comparison.md) scores how discoverable these patterns are across D, Rust, Swift, and C#.

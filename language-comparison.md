@@ -1,6 +1,6 @@
 # Language Comparison: Safety Boundary Discoverability
 
-This document compares safety boundary and unsafe code discoverability across languages, ordered by [discoverability score](scoring-methodology.md). The methodology uses grep as a proxy for inference cost, matching how [`jq` has been used as the arbiter of sound schema design](https://github.com/dotnet/designs/blob/main/accepted/2025/cve-schema/cve_schema.md#design-philosophy) — if a safety-relevant question can't be answered by grep, the language design has failed at explicit self-description.
+This document compares safety boundary and unsafe code discoverability across languages, ordered by [discoverability score](scoring-methodology.md). The methodology uses grep as a proxy for inference cost — if a safety-relevant question can't be answered by grep, the language design has failed at explicit self-description.
 
 Source repos used:
 - D: [dlang/phobos](https://github.com/dlang/phobos)
@@ -32,10 +32,10 @@ Pivot the keyword, narrow to blocks. Both sides of the ledger — safety boundar
 
 ## 2. Rust — 77.5%
 
-**Finding safety boundaries** — Rust has no explicit marker for caller-safe functions that contain `unsafe` blocks. Discovering them requires parsing function bodies. See [`scripts/find-rust-trust-boundaries.sh`](scripts/find-rust-trust-boundaries.sh) — an 80-line awk script:
+**Finding safety boundaries** — Rust has no explicit marker for caller-safe functions that contain `unsafe` blocks. Discovering them requires parsing function bodies. See [`scripts/find-rust-safety-boundaries.sh`](scripts/find-rust-safety-boundaries.sh) — an 80-line awk script:
 
 ```bash
-$ ./scripts/find-rust-trust-boundaries.sh library | head -12
+$ ./scripts/find-rust-safety-boundaries.sh library | head -12
 ```
 
 ```text
@@ -103,7 +103,7 @@ Directly discoverable. Discoverable, with one demerit: `unsafe` still mixes meth
 
 The [`unsafe` keyword proposal](https://github.com/dotnet/csharplang/pull/10058): `unsafe` on a method means caller-unsafe. Safe-as-default, caller contract and implementation-only scoping. Opt-in. No safety boundary marker.
 
-**Finding safety boundaries** — not directly discoverable. Requires a script: [`scripts/find-csharp-trust-boundaries.sh`](scripts/find-csharp-trust-boundaries.sh).
+**Finding safety boundaries** — not directly discoverable. Requires a script: [`scripts/find-csharp-safety-boundaries.sh`](scripts/find-csharp-safety-boundaries.sh).
 
 **Finding unsafe code** — `rg "unsafe" --type cs`. Discoverable but `unsafe` mixes methods and blocks.
 
@@ -113,10 +113,10 @@ The [`unsafe` keyword proposal](https://github.com/dotnet/csharplang/pull/10058)
 
 ## 5. Swift — 50.0%
 
-**Finding safety boundaries** — Swift has the same structural challenge as Rust. See [`scripts/find-swift-trust-boundaries.sh`](scripts/find-swift-trust-boundaries.sh):
+**Finding safety boundaries** — Swift has the same structural challenge as Rust. See [`scripts/find-swift-safety-boundaries.sh`](scripts/find-swift-safety-boundaries.sh):
 
 ```bash
-$ ./scripts/find-swift-trust-boundaries.sh stdlib | head -8
+$ ./scripts/find-swift-safety-boundaries.sh stdlib | head -8
 ```
 
 Not directly discoverable — requires a script.
@@ -196,7 +196,7 @@ The D community's guidance confirms that `@trusted` is where the review budget g
 
 ## 7. C# (current) — 35.0%
 
-**Finding safety boundaries** — C# has no clean model for this. See [`scripts/find-csharp-trust-boundaries.sh`](scripts/find-csharp-trust-boundaries.sh).
+**Finding safety boundaries** — C# has no clean model for this. See [`scripts/find-csharp-safety-boundaries.sh`](scripts/find-csharp-safety-boundaries.sh).
 
 **Finding unsafe code** — C# supports `unsafe` on methods, blocks, classes, and fields. A single directory shows the problem:
 

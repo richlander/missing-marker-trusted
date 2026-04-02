@@ -60,7 +60,7 @@ The `unsafe` keyword — for modern mainline languages — starts with C#. Earli
 - Safe Critical
 - Security Critical
 
-Transparent code could only call other transparent or safe-critical code. Safe-critical and security-critical code had similar privileged capability, but different caller contracts: safe-critical code was the reviewed boundary that remained callable from transparent code and took responsibility for validation. That makes it direct prior art for an explicit trust-boundary marker in the .NET ecosystem.
+Transparent code could only call other transparent or safe-critical code. Safe-critical and security-critical code had similar privileged capability, but different caller contracts: safe-critical code was the reviewed boundary that remained callable from transparent code and took responsibility for validation. That makes it direct prior art for an explicit safety-boundary marker in the .NET ecosystem.
 
 - **C# / Silverlight:** transparent, safe-critical, security-critical
 - **C# (2001):** `unsafe` as a compiler-enforced keyword
@@ -72,7 +72,7 @@ The safety boundary gap has discussion and productization to support it. D addre
 
 ## Formal Verification Parallel
 
-Terence Tao has arrived at a similar conclusion in mathematics research with the [Lean proof language](https://leanprover-community.github.io/). Lean makes proof obligations machine-checkable; `safe` makes safety attestations machine-discoverable — same principle, different domain. Tao's vision is that large groups of mathematicians and agents work together to produce compelling and trusted proofs. That requires the proof language to be lossless — exactly the property this paper argues for in safety attestations.
+Terence Tao has arrived at a similar conclusion in mathematics research with the [Lean proof language](https://leanprover-community.github.io/). Lean makes proof obligations machine-checkable; `safe` makes safety attestations machine-discoverable — same principle, different domain. Tao's vision is that large groups of mathematicians and agents work together to produce compelling and trusted proofs. That requires the proof language to be lossless — exactly the property this proposal argues for in safety attestations.
 
 ## Tokenizer Comparison
 
@@ -100,7 +100,7 @@ The [OpenAI Tokenizer](https://platform.openai.com/tokenizer) shows that keyword
 
 `unsafe` and `safe` are each single tokens. `RequiresUnsafeAttribute(false)` spans seven tokens. While tokenization alone does not determine comprehension, it is a reasonable proxy for representational complexity. The compound, double-negative form encodes the same safety information in a representation that is strictly harder to parse — for both humans and models.
 
-> **Note:** The tokenizer images above were captured from the original paper, which used `trusted` as the keyword. The `safe` keyword tokenizes identically to `trusted` — both are single tokens.
+> **Note:** The tokenizer images above were captured from an earlier draft that used `trusted` as the keyword. The `safe` keyword tokenizes identically to `trusted` — both are single tokens.
 
 ## Relevant Design Specs
 
@@ -113,3 +113,7 @@ The [OpenAI Tokenizer](https://platform.openai.com/tokenizer) shows that keyword
 - D: [Memory-Safe D](https://dlang.org/spec/memory-safe-d.html)
 - Rust: [RFC 2585 — unsafe block in unsafe fn](https://rust-lang.github.io/rfcs/2585-unsafe-block-in-unsafe-fn.html)
 - Swift: [SE-0458 — Strict Memory Safety](https://github.com/swiftlang/swift-evolution/blob/main/proposals/0458-strict-memory-safety.md)
+
+---
+
+See also: [CVE analysis](cve-analysis.md) for empirical evidence, [notable patterns](notable-patterns.md) for code examples, [language comparison](language-comparison.md) for cross-language scoring, and [scoring methodology](scoring-methodology.md) for the framework.

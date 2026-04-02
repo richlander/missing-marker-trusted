@@ -47,7 +47,7 @@ When interior `unsafe` blocks are implementation-only — hidden from callers, a
 
 When the safety model runs without opt-in, grep results reflect ground truth from the start — there is no adoption gap where annotations are incomplete. Rust's borrow checker, lifetime system, and unsafe propagation are active in every Rust project by default. C#'s current `unsafe` gate is similarly default-on. New C# proposals (including `safe`) require opting in to the new model, so they lose this credit until the model matures. Swift's strict memory safety requires `-strict-memory-safety`. D's `@safe` is opt-in per function.
 
-The weight of 3 reflects that default-on enforcement is a significant advantage — it is what allows Rust's safety model to be trusted across the ecosystem without per-project verification. This also partially accounts for Rust's borrow checker, which is a comprehensive verification system that this paper's discoverability-focused scoring does not otherwise measure.
+The weight of 3 reflects that default-on enforcement is a significant advantage — it is what allows Rust's safety model to be trusted across the ecosystem without per-project verification. This also partially accounts for Rust's borrow checker, which is a comprehensive verification system that this discoverability-focused scoring does not otherwise measure.
 
 ### Demerit: Grep ambiguity (-1 each)
 
@@ -128,3 +128,5 @@ The three discovery dimensions are equally weighted at 3 points each. Safe-as-de
 | + `unsafe` keyword (caller contract) | Caller contract, implementation-only scoping | **50.0%** |
 | + `safe` keyword | Safety boundaries become grep-discoverable | **72.5%** |
 | + default-on | Model maturity, no longer opt-in | **87.5%** |
+
+See [language-comparison.md](language-comparison.md) for the per-language analysis that applies this methodology.

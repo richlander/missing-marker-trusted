@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 #
-# find-swift-trust-boundaries.sh
+# find-swift-safety-boundaries.sh
 #
 # Find safe functions that use `unsafe` expressions — Swift's implicit
-# trust boundary. This is what D marks explicitly with @trusted.
+# safety boundary. This is what D marks explicitly with @trusted.
 #
 # In Swift 6.2, `unsafe` is an expression prefix (not a block):
 #   let p = unsafe someUnsafeCall()
-# A trust boundary is a func NOT marked @unsafe that contains these.
+# A safety boundary is a func NOT marked @unsafe that contains these.
 #
 # No LSP. Just grep + awk.
 #
@@ -23,8 +23,8 @@
 #   - This is a triage tool, not an authoritative audit tool
 #
 # Usage:
-#   ./find-swift-trust-boundaries.sh [dir]
-#   ./find-swift-trust-boundaries.sh ~/git/swiftlang-swift/stdlib
+#   ./find-swift-safety-boundaries.sh [dir]
+#   ./find-swift-safety-boundaries.sh ~/git/swiftlang-swift/stdlib
 
 set -euo pipefail
 

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
-# find-rust-trust-boundaries.sh
+# find-rust-safety-boundaries.sh
 #
 # Find safe functions that contain unsafe {} blocks — Rust's implicit
-# trust boundary. This is what D marks explicitly with @trusted.
+# safety boundary. This is what D marks explicitly with @trusted.
 #
 # No LSP. Just grep + awk.
 #
@@ -17,8 +17,8 @@
 #   - This is a triage tool, not an authoritative audit tool
 #
 # Usage:
-#   ./find-rust-trust-boundaries.sh [dir]
-#   ./find-rust-trust-boundaries.sh ~/git/rust/library
+#   ./find-rust-safety-boundaries.sh [dir]
+#   ./find-rust-safety-boundaries.sh ~/git/rust/library
 
 set -euo pipefail
 
