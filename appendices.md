@@ -1,5 +1,7 @@
 # Appendices
 
+> Optional background material supporting the main proposal. The primary argument lives in [README.md](README.md), [cve-analysis.md](cve-analysis.md), [notable-patterns.md](notable-patterns.md), [language-comparison.md](language-comparison.md), and [scoring-methodology.md](scoring-methodology.md).
+
 ## Lossless Attestations
 
 "Lossless" means every safety attestation is recorded in code and source control. There is never a compiler-accepted state where information is lost. `git blame` finds who attested safety and when. `grep` inventories every attestation. Code review tools can flag changes to attested methods for re-review.
@@ -32,7 +34,7 @@ Swift faces a related challenge with Apple's own frameworks. During the [SE-0458
 
 ## Agent-Assisted Maintenance
 
-The [PR feedback](https://github.com/dotnet/csharplang/pull/10058#pullrequestreview-4016744830) states: "High-confidence AI-assisted automation of the migration process flow is a part of the feature design." The inference cost of the safety model directly determines how effectively agents can participate.
+The [PR feedback](https://github.com/dotnet/csharplang/pull/10058#pullrequestreview-4016744830) states: "High-confidence AI-assisted automation of the migration process flow is a part of the feature design." The inference cost of the safety model directly affects how effectively automation can participate.
 
 A low-inference model enables agents to:
 - Inventory safety boundaries (`rg -w "safe"` — complete, no AST required)
@@ -42,7 +44,7 @@ A low-inference model enables agents to:
 
 High-inference models force agents to build ASTs or rely on LSPs. This is more expensive, fragile across environments, and harder to validate.
 
-AI models will get better. Their capacity to fundamentally self-drive security work is a function of the language, not AI innovation. Handcuffing agents with stringent language requirements will objectively produce better and more trustworthy results.
+More broadly, as tooling improves, designs that expose safety-relevant structure directly in source should be easier to review, audit, and migrate with high confidence. Requiring less inference is a design advantage independent of any particular generation of tools.
 
 ### The LSP Doesn't Solve This
 

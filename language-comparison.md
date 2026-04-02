@@ -1,6 +1,6 @@
 # Language Comparison: Safety Boundary Discoverability
 
-This document compares safety boundary and unsafe code discoverability across languages, ordered by [discoverability score](scoring-methodology.md). The methodology uses grep as a proxy for inference cost — if a safety-relevant question can't be answered by grep, the language design has failed at explicit self-description.
+This document compares safety boundary and unsafe code discoverability across languages, ordered by the heuristic score defined in [scoring-methodology.md](scoring-methodology.md). The percentages below are model outputs intended for ordinal comparison, not precise measurement. The methodology uses grep as a proxy for inference cost: if a safety-relevant question cannot be answered from the source without substantial inference, the design is placing more burden on reviewers and tooling.
 
 Source repos used:
 - D: [dlang/phobos](https://github.com/dlang/phobos)
@@ -9,6 +9,21 @@ Source repos used:
 - C#: [dotnet/runtime](https://github.com/dotnet/runtime) (`src/libraries/`)
 
 Scripts referenced below are in the [`scripts/`](scripts/) directory. They are triage tools with known limitations (string literals, macros, block comments can cause false positives) — reasonable approximations, not authoritative audit tools.
+
+---
+
+## Summary ranking
+
+| Language | Score | Key strength | Key gap |
+|----------|-------|-------------|---------|
+| C# (optimal) | **87.5%** | Both safety boundaries and unsafe code are discoverable | `unsafe` still mixes methods and blocks |
+| Rust | **77.5%** | Default-on enforcement, clean unsafe discovery | No explicit safety-boundary marker |
+| C# + `unsafe` + `safe` | **72.5%** | Both review surfaces become discoverable | Opt-in until the model matures |
+| C# + `unsafe` keyword | **50.0%** | Caller contract, safe-as-default | No safety-boundary marker |
+| Swift | **50.0%** | Fine-grained unsafe expressions | No safety-boundary marker; opt-in warnings |
+| D | **40.0%** | Explicit safety boundaries via `@trusted` | Unsafe-first default leaves `@system` largely implicit |
+| C# (current) | **35.0%** | Safe-as-default, enforcement on | Ambiguous `unsafe`, no caller contract |
+| C# + `RequiresUnsafe` | **35.0%** | Caller contract, safe-as-default | Attribute noise, no safety-boundary marker |
 
 ---
 
@@ -24,7 +39,7 @@ $ rg -w "unsafe" --type cs src/libraries     # unsafe signatures + blocks
 $ rg "unsafe\s*\{" --type cs src/libraries   # unsafe blocks only
 ```
 
-Pivot the keyword, narrow to blocks. Both sides of the ledger — safety boundaries and unsafe code — are directly discoverable. Together: the complete safety-critical picture. No other language in this comparison achieves both.
+Pivot the keyword, narrow to blocks. Both sides of the ledger — safety boundaries and unsafe code — are directly discoverable. Together: the complete safety-critical picture. Among the compared languages, this is the only design that makes both activities straightforward from source alone.
 
 **Score breakdown:** Full marks on discovery (safety boundaries + unsafe declarations + safe-as-default). Full marks on auditing design (viral caller contract + constrained inner unsafe + enforcement on by default). One demerit: `unsafe` still mixes methods and blocks (backward compatibility cost).
 
@@ -240,7 +255,7 @@ Four demerits: `unsafe` mixes methods/blocks/types, `unsafe class` implicit memb
 
 The safety audit has two activities:
 
-1. **Safety-boundary-directed review** — discover safety boundaries, trace into the unsafe code they attest. This follows the audit graph from roots to leaves.
+1. **Safety-boundary-directed review** — discover safety boundaries, trace into the unsafe code they attest, and when necessary also trace through the safe helper code that maintains the invariants those unsafe operations depend on. This follows the audit graph from roots to leaves, and sometimes sideways through guard logic as well.
 2. **Undirected unsafe review** — independently inventory all unsafe code, looking for patterns, known-bad operations, or code that should have been wrapped in a safety boundary but wasn't.
 
 D handles activity 1 within the `@safe` subset: `rg "@trusted"` finds the boundaries. But D can't do activity 2 because `@system` is implicit.
@@ -255,21 +270,10 @@ $ rg -w "unsafe" --type cs                   # Activity 2: find unsafe code
 $ rg "unsafe\s*\{" --type cs                 # Activity 2b: unsafe blocks only
 ```
 
-The first command finds every safety boundary — exhaustive, because safe is the default. The second finds every unsafe declaration and block. The third narrows to blocks for targeted review. No other language in this comparison achieves both activities.
+The first command finds every safety boundary — exhaustive, because safe is the default. The second finds every unsafe declaration and block. The third narrows to blocks for targeted review. In practice, reviewers often need to inspect both sides of the boundary: the unsafe operations themselves and the nearby safe code that enforces their preconditions. That safe-side tracing is especially important when the project owns both the guard and the unsafe implementation, less so when the guard delegates to a well-known standard-library helper like `ArgumentNullException.ThrowIfNull`. Among the compared languages, this is the only design that makes both activities straightforward from source alone.
 
 ---
 
-## Summary
+## Takeaway
 
-| Language | Score | Key strength | Key gap |
-|----------|-------|-------------|---------|
-| C# (optimal) | **87.5%** | Both safety boundaries and unsafe are discoverable | `unsafe` mixes methods/blocks |
-| Rust | **77.5%** | Default-on enforcement, clean unsafe discovery | No safety boundary marker |
-| C# + `unsafe` + `safe` | **72.5%** | Both discoverable, safe-as-default | Opt-in (not yet default-on) |
-| C# + `unsafe` keyword | **50.0%** | Caller contract, safe-as-default | No safety boundary marker |
-| Swift | **50.0%** | Fine-grained unsafe expressions | No safety boundary marker, opt-in warnings |
-| D | **40.0%** | Only language with explicit safety boundaries | Unsafe-first default, `@system` invisible |
-| C# (current) | **35.0%** | Safe-as-default, enforcement on | Ambiguous `unsafe`, no caller contract |
-| C# + `RequiresUnsafe` | **35.0%** | Caller contract, safe-as-default | Attribute noise, no safety boundary marker |
-
-See [scoring-methodology.md](scoring-methodology.md) for the full methodology and scoring detail.
+Under this heuristic, Rust currently provides the strongest default-on unsafe model among the compared safe-first languages, while an explicit `safe` marker would let C# make safety boundaries discoverable as well. See [scoring-methodology.md](scoring-methodology.md) for the full weighting and score detail.

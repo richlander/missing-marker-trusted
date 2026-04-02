@@ -4,12 +4,19 @@ Memory safety v2 is one of the highest-stakes features we have taken on. It bear
 
 This proposal adds a `safe` keyword to C# so that safety boundaries are explicitly marked, grep-discoverable, lossless under `git blame`, and form exhaustive roots of the audit graph. The addition of `safe` makes safety markings symmetric: code participating in unsafety is marked with intent, not inferred by absence. It is important to remember that safe boundary methods harbor unsafety; they are made safe by a claim, not by compiler validation.
 
-The two keywords work together to enforce a workflow across methods, libraries, and packages:
+## Executive summary
 
-- `unsafe` propagates a contract with obligation documentation
-- `safe` encapsulates the contract and discharges obligations with guards
+This proposal asks C# to mark safety-boundary methods explicitly: methods that remain safe to call but contain interior unsafe operations. The goal is not to make the compiler prove the whole safety argument, but to make the reviewed boundary visible in signatures, diffs, grep results, and ordinary code review. The supporting documents make the case from three directions: worked examples, recent .NET CVEs, and cross-language comparison.
 
-A set of supporting documents deepen the case for the `safe` keyword with additional analysis, listed at the end of this document. A couple are worth noting earlier. [CVE Analysis](https://github.com/richlander/missing-marker-trusted/blob/main/cve-analysis.md) demonstrates that CVEs are often in safe guards and can occur as often in caller-safe boundary methods as in caller-unsafe methods. [Language Comparison](https://github.com/richlander/missing-marker-trusted/blob/main/language-comparison.md) demonstrates the challenge of performing effective safety audits in absence of the `safe` keyword.
+## Design summary
+
+The model distinguishes three roles:
+
+- `unsafe` signature — unsafe to call; propagates a caller obligation
+- `safe` signature — safe to call; contains or discharges that obligation with guards and validation
+- `unsafe {}` block — implementation-local region where the dangerous operation actually occurs
+
+The supporting documents below deepen the case. [CVE analysis](cve-analysis.md) examines recent .NET cases where the bug was in the guard or validation around an unsafe operation, not only in the primitive itself. [Language comparison](language-comparison.md) compares how different language designs expose or hide these review surfaces.
 
 ## Examples
 
@@ -90,7 +97,7 @@ pub const fn split_at_checked(&self, mid: usize) -> Option<(&[T], &[T])> {
 
 ### What happens when guards are wrong: BigInteger
 
-[CVE-2024-30045](https://github.com/richlander/missing-marker-trusted/blob/main/cve-analysis.md#cve-2024-30045--heap-buffer-overflow-in-unsafe-ref-struct-biginteger) illustrates the lifecycle of a safety boundary failure. `Number.BigInteger` was declared `unsafe ref struct` — an old-style C# fixed buffer with raw pointer access and no bounds checking. Its `MaxBlockCount` constant was one short, causing heap buffer overflows during carry propagation.
+[CVE-2024-30045](cve-analysis.md#cve-2024-30045--heap-buffer-overflow-in-unsafe-ref-struct-biginteger) illustrates the lifecycle of a safety boundary failure. `Number.BigInteger` was declared `unsafe ref struct` — an old-style C# fixed buffer with raw pointer access and no bounds checking. Its `MaxBlockCount` constant was one short, causing heap buffer overflows during carry propagation.
 
 The fix timeline shows three stages:
 
@@ -100,17 +107,17 @@ The fix timeline shows three stages:
 
 Under the proposed model, `unsafe ref struct` would have been illegal. Each method performing unchecked indexing would have required an explicit `unsafe` block, and the containing methods would have been marked `safe` or `unsafe` — making the safety boundary visible and auditable from the start.
 
-## Safe role
+## Why mark `safe` explicitly
 
 `safe` indicates three starting points:
 
-- Where the safety claim is made and the safety audit has complete information.
-- Where the unsafe call graph can be discovered; provides unsafe implementations.
-- Where the safe call graph can be discovered; provides "safe defence" implementations.
+- Where the safety claim is made and the audit has the most relevant context.
+- Where the unsafe call graph rooted at that claim can be discovered.
+- Where the safe helper code participating in the proof can be discovered.
 
 If a method with interior unsafe code is intended to remain safe-callable, that status should be explicit rather than inferred from the absence of `unsafe`. Otherwise one missing marker has to carry too much meaning: genuinely safe boundary method, accidentally unmarked method, or intentionally misleading code. That ambiguity is exactly what explicit `safe` is meant to remove.
 
-Discovery and auditing can be accomplished without new syntax, relying on a sophisticated compiler and semantic analysis API, like Roslyn. The more explicit the safety markings are, the more safety review can succeed by code inspection alone. That's the pitch. This is fundamentally about reducing the amount of inference and deep language expertise required. The cost of an explicit keyword is one token per safety boundary; the cost of a missed boundary is a CVE.
+Roslyn and similar tools can already recover much of this information. The design question is whether the source should state it directly or require deeper inference. Explicit markings lower the burden on reviewers, maintainers, and tools. The syntax cost is modest; the review value can be high in safety-critical code.
 
 ## Prior art
 
@@ -120,9 +127,9 @@ Rust has prior art with `safe`. In [RFC 3484 — unsafe extern blocks](https://r
 
 ## Defense in depth
 
-The problem with absence being meaningful is that a single bit encodes a ternary state: unsafe, safe by best-effort intention, or safe by accident or malicious intention. The [xz incident with Jia Tan](https://en.wikipedia.org/wiki/XZ_Utils_backdoor) relied heavily on subtle diffs to trick reviewers and it worked. The addition of a `safe` keyword explicitly reminds code writers and reviewers to match claim with code. Diffs will always have `safe` or `unsafe` on both sides — never empty string — unless unsafe code has been removed entirely, at which point validation transitions to the compiler. See [Appendix: Defense in Depth](https://github.com/richlander/missing-marker-trusted/blob/main/appendices.md#defense-in-depth-the-xz-backdoor-lesson) for the full analysis.
+The problem with absence being meaningful is that a single bit encodes a ternary state: unsafe, safe by best-effort intention, or safe by accident or malicious intention. The [xz incident with Jia Tan](https://en.wikipedia.org/wiki/XZ_Utils_backdoor) is a reminder that subtle diffs and review ambiguity matter. The addition of a `safe` keyword explicitly reminds code writers and reviewers to match claim with code. Diffs will then carry `safe` or `unsafe` on both sides — never an empty string transition — unless unsafe code has been removed entirely, at which point validation transitions to the compiler. See [Appendix: Defense in Depth](appendices.md#defense-in-depth-the-xz-backdoor-lesson) for the fuller discussion.
 
-These defense-in-depth measures are simultaneously our best leverage points for AI security migration (to the new model) and ongoing review at scale. Explicit keywords provide context without inference.
+These measures also help tool-assisted review and migration at scale. Explicit keywords provide context with less inference.
 
 ## Grep-ability
 
@@ -142,13 +149,13 @@ Without the `safe` keyword, finding caller-safe unsafe methods requires somethin
 grep -nP '^\s*(public|private|protected|internal|static|virtual|override|abstract|sealed|async|partial|\w+)\s+\w+\s*\(' file.cs | grep -v '\bunsafe\b'
 ```
 
-This won't work in many cases and is offered as a failure case. The argument that grep doesn't matter has to extend to clear attestation and the git diff footgun not mattering either.
+This won't work in many cases and is offered as a failure case. Any claim that grep does not matter also has to explain why signature-level attestation and diff visibility are unimportant in review-heavy infrastructure code.
 
-Search ergonomics are a fitness property of the safety model — see [scoring methodology](https://github.com/richlander/missing-marker-trusted/blob/main/scoring-methodology.md#why-grep) for the full rationale. Rust and Swift have the exact same challenge. This proposal offers an opportunity to evolve the memory safety domain: explicit markings are critical for the entirety of the unsafe domain. The addition of an explicit keyword will make agent enablement easier and increase confidence by eliminating the footgun and offering implicit skills for agents that are asked to review C#.
+Search ergonomics are a fitness property of the safety model — see [scoring methodology](scoring-methodology.md#why-grep) for the full rationale. Rust and Swift face the same structural challenge. Explicit markings make the unsafe domain easier to review, explain, and audit.
 
 ## Scoring
 
-The [scoring methodology](https://github.com/richlander/missing-marker-trusted/blob/main/scoring-methodology.md) defines the full framework. At a high level, the model rewards safety designs that are sound, explicit, and enforced, and penalizes designs that blur those signals.
+The [scoring methodology](scoring-methodology.md) defines the full framework. At a high level, the model rewards safety designs that are sound, explicit, and enforced, and penalizes designs that blur those signals. The percentages below are heuristic outputs of that model, intended for ordinal comparison rather than precise measurement.
 
 | Design | Score |
 |--------|-------|
@@ -171,8 +178,8 @@ The detailed methodology then adds demerits for grep ambiguity and other audit f
 
 ## Supporting documents
 
-- [Notable patterns](https://github.com/richlander/missing-marker-trusted/blob/main/notable-patterns.md) — real-world examples from .NET, Rust, and Swift standard libraries
-- [Language comparison](https://github.com/richlander/missing-marker-trusted/blob/main/language-comparison.md) — grep-based discoverability across D, Rust, Swift, and C#, in ranking order
-- [Scoring methodology](https://github.com/richlander/missing-marker-trusted/blob/main/scoring-methodology.md) — the grep test framework and detailed scoring
-- [CVE analysis](https://github.com/richlander/missing-marker-trusted/blob/main/cve-analysis.md) — 40 .NET CVEs analyzed for safety boundary relevance
-- [Appendices](https://github.com/richlander/missing-marker-trusted/blob/main/appendices.md) — lossless attestations, xz backdoor lesson, binary distribution, agent workflows, keyword lineage
+- [Notable patterns](notable-patterns.md) — real-world examples from .NET, Rust, and Swift standard libraries
+- [Language comparison](language-comparison.md) — grep-based discoverability across D, Rust, Swift, and C#, in ranking order
+- [Scoring methodology](scoring-methodology.md) — the grep test framework and detailed scoring
+- [CVE analysis](cve-analysis.md) — 40 .NET CVEs analyzed for safety boundary relevance
+- [Appendices](appendices.md) — optional background on lossless attestations, xz, binary distribution, agent workflows, and keyword lineage

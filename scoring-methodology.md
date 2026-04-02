@@ -4,9 +4,11 @@
 
 Code review — the primary context where safety-critical code is evaluated — operates at the same level as grep. When reviewing a pull request in GitHub or any diff view, there is no sophisticated language-specific tooling. The reviewer's tools are their eyes and Ctrl/CMD-F. An agent is more likely to use grep. Source code should stand on its own for safety review.
 
-We can use grep as a proxy for sound language design, matching how [`jq` has been used as the arbiter of sound schema design](https://github.com/dotnet/designs/blob/main/accepted/2025/cve-schema/cve_schema.md#design-philosophy). If a safety-relevant question can't be answered by grep, the language design has failed at explicit self-description.
+We can use grep as a proxy for sound language design, matching how [`jq` has been used as the arbiter of sound schema design](https://github.com/dotnet/designs/blob/main/accepted/2025/cve-schema/cve_schema.md#design-philosophy). If a safety-relevant question cannot be answered by grep, the design is placing more of the burden on tooling and reviewer inference.
 
-Search ergonomics are a fitness property of the safety model. Language-specific tools are part of that and so is grep. The addition of explicit keywords will make agent enablement easier and increase confidence by eliminating footguns and offering implicit skills for agents that are asked to review code.
+Search ergonomics are a fitness property of the safety model. Language-specific tools are part of that and so is grep. Explicit keywords reduce review friction and improve tool-assisted auditability.
+
+> **Scope note:** This is a heuristic, ordinal scoring model. The numeric totals and percentages below are weighted outputs of the framework, not empirical measurements or claims of statistical significance.
 
 ## Grep Difficulty Scale
 
