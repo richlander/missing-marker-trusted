@@ -1,6 +1,6 @@
 # Language Comparison: Safety Boundary Discoverability
 
-This document compares safety boundary and unsafe code discoverability across languages, ordered by [discoverability score](scoring-methodology.md). The methodology uses grep as a proxy for inference cost — if a safety-relevant question can't be answered by grep, the language design has failed at explicit self-description.
+This document compares safety boundary and unsafe code discoverability across languages, ordered by [discoverability score](scoring-methodology.md). The methodology uses grep as a proxy for inference cost, matching how [`jq` has been used as the arbiter of sound schema design](https://github.com/dotnet/designs/blob/main/accepted/2025/cve-schema/cve_schema.md#design-philosophy) — if a safety-relevant question can't be answered by grep, the language design has failed at explicit self-description.
 
 Source repos used:
 - D: [dlang/phobos](https://github.com/dlang/phobos)
@@ -19,18 +19,12 @@ C# + `unsafe` + `safe` at maturity: enforcement on by default, no longer opt-in.
 **Finding safety boundaries:**
 
 ```bash
-$ rg -w "safe" --type cs src/libraries
+$ rg -w "safe" --type cs src/libraries       # safety boundary signatures
+$ rg -w "unsafe" --type cs src/libraries     # unsafe signatures + blocks
+$ rg "unsafe\s*\{" --type cs src/libraries   # unsafe blocks only
 ```
 
-One command. Every safety boundary function in the codebase.
-
-**Finding unsafe code:**
-
-```bash
-$ rg "unsafe" --type cs src/libraries
-```
-
-Both sides of the ledger — safety boundaries and unsafe code — are directly discoverable. Together: the complete safety-critical picture. No other language in this comparison achieves both.
+Pivot the keyword, narrow to blocks. Both sides of the ledger — safety boundaries and unsafe code — are directly discoverable. Together: the complete safety-critical picture. No other language in this comparison achieves both.
 
 **Score breakdown:** Full marks on discovery (safety boundaries + unsafe declarations + safe-as-default). Full marks on auditing design (viral caller contract + constrained inner unsafe + enforcement on by default). One demerit: `unsafe` still mixes methods and blocks (backward compatibility cost).
 
@@ -94,18 +88,12 @@ The proposed design: `safe` keyword + `unsafe` as caller contract + interior `un
 **Finding safety boundaries:**
 
 ```bash
-$ rg -w "safe" --type cs src/libraries
+$ rg -w "safe" --type cs src/libraries       # safety boundary signatures
+$ rg -w "unsafe" --type cs src/libraries     # unsafe signatures + blocks
+$ rg "unsafe\s*\{" --type cs src/libraries   # unsafe blocks only
 ```
 
-Directly discoverable.
-
-**Finding unsafe code:**
-
-```bash
-$ rg "unsafe" --type cs src/libraries
-```
-
-Discoverable, with one demerit: `unsafe` still mixes methods and blocks (shared by all C# variants).
+Directly discoverable. Discoverable, with one demerit: `unsafe` still mixes methods and blocks (shared by all C# variants).
 
 **Design tradeoff.** The gap from this design (72.5%) to C# optimal (87.5%) is model maturity — the same path Rust has already completed. Adding `safe` closes most of the gap with Rust; the rest is default-on enforcement.
 
@@ -172,7 +160,7 @@ unsafe expressions:                 158 hits across 38 files
 Safety boundary functions:          118 functions (via 110-line awk script)
 ```
 
-The 118 safety boundary functions — the most important audit targets — are invisible to grep. Even with the compiler's `-strict-memory-safety` mode (12,526 warnings across 319 files), the output identifies unsafe *usage sites*, not safety boundaries. Neither the compiler audit tool nor grep answers the safety boundary question. See [safe-guards-unsafe-examples.md](safe-guards-unsafe-examples.md#swift-appleswift-collections) for concrete examples of what these functions look like inside.
+The 118 safety boundary functions — the most important audit targets — are invisible to grep. Even with the compiler's `-strict-memory-safety` mode (12,526 warnings across 319 files), the output identifies unsafe *usage sites*, not safety boundaries. Neither the compiler audit tool nor grep answers the safety boundary question. See [notable-patterns.md](notable-patterns.md#swift-appleswift-collections) for concrete examples of what these functions look like inside.
 
 ---
 
@@ -262,11 +250,12 @@ Rust handles activity 2 perfectly: `rg "unsafe fn"` inventories all unsafe code.
 C# (optimal) handles both:
 
 ```bash
-$ rg -w "safe" --type cs                    # Activity 1: find safety boundaries
-$ rg "unsafe" --type cs -A 20               # Activity 2: inspect unsafe code
+$ rg -w "safe" --type cs                     # Activity 1: find safety boundaries
+$ rg -w "unsafe" --type cs                   # Activity 2: find unsafe code
+$ rg "unsafe\s*\{" --type cs                 # Activity 2b: unsafe blocks only
 ```
 
-The first command finds every safety boundary — exhaustive, because safe is the default. The second finds every unsafe operation with body context. No other language in this comparison achieves both.
+The first command finds every safety boundary — exhaustive, because safe is the default. The second finds every unsafe declaration and block. The third narrows to blocks for targeted review. No other language in this comparison achieves both activities.
 
 ---
 
