@@ -9,7 +9,7 @@ The two keywords work together to enforce a workflow across methods, libraries, 
 - `unsafe` propagates a contract with obligation documentation
 - `safe` encapsulates the contract and discharges obligations with guards
 
-The supporting [CVE Analysis](./cve-analysis.md) demonstrates that CVEs are often in safe guards and can occur as often in boundary methods as in caller-unsafe methods.
+The supporting [CVE Analysis](https://github.com/richlander/missing-marker-trusted/blob/main/cve-analysis.md) demonstrates that CVEs are often in safe guards and can occur as often in boundary methods as in caller-unsafe methods.
 
 ## Examples
 
@@ -89,7 +89,7 @@ pub const fn split_at_checked(&self, mid: usize) -> Option<(&[T], &[T])> {
 
 ### What happens when guards are wrong: BigInteger
 
-[CVE-2024-30045](cve-analysis.md#cve-2024-30045--heap-buffer-overflow-in-unsafe-ref-struct-biginteger) illustrates the lifecycle of a safety boundary failure. `Number.BigInteger` was declared `unsafe ref struct` — an old-style C# fixed buffer with raw pointer access and no bounds checking. Its `MaxBlockCount` constant was one short, causing heap buffer overflows during carry propagation.
+[CVE-2024-30045](https://github.com/richlander/missing-marker-trusted/blob/main/cve-analysis.md#cve-2024-30045--heap-buffer-overflow-in-unsafe-ref-struct-biginteger) illustrates the lifecycle of a safety boundary failure. `Number.BigInteger` was declared `unsafe ref struct` — an old-style C# fixed buffer with raw pointer access and no bounds checking. Its `MaxBlockCount` constant was one short, causing heap buffer overflows during carry propagation.
 
 The fix timeline shows three stages:
 
@@ -119,7 +119,7 @@ Rust has prior art with `safe`. In [RFC 3484 — unsafe extern blocks](https://r
 
 ## Defense in depth
 
-The problem with absence being meaningful is that a single bit encodes a ternary state: unsafe, safe by best-effort intention, or safe by accident or malicious intention. The [xz incident with Jia Tan](https://en.wikipedia.org/wiki/XZ_Utils_backdoor) relied heavily on subtle diffs to trick reviewers and it worked. The addition of a `safe` keyword explicitly reminds code writers and reviewers to match claim with code. Diffs will always have `safe` or `unsafe` on both sides — never empty string — unless unsafe code has been removed entirely, at which point validation transitions to the compiler. See [Appendix: Defense in Depth](appendices.md#defense-in-depth-the-xz-backdoor-lesson) for the full analysis.
+The problem with absence being meaningful is that a single bit encodes a ternary state: unsafe, safe by best-effort intention, or safe by accident or malicious intention. The [xz incident with Jia Tan](https://en.wikipedia.org/wiki/XZ_Utils_backdoor) relied heavily on subtle diffs to trick reviewers and it worked. The addition of a `safe` keyword explicitly reminds code writers and reviewers to match claim with code. Diffs will always have `safe` or `unsafe` on both sides — never empty string — unless unsafe code has been removed entirely, at which point validation transitions to the compiler. See [Appendix: Defense in Depth](https://github.com/richlander/missing-marker-trusted/blob/main/appendices.md#defense-in-depth-the-xz-backdoor-lesson) for the full analysis.
 
 These defense-in-depth measures are simultaneously our best leverage points for AI security migration (to the new model) and ongoing review at scale. Explicit keywords provide context without inference.
 
@@ -143,11 +143,11 @@ grep -nP '^\s*(public|private|protected|internal|static|virtual|override|abstrac
 
 This won't work in many cases and is offered as a failure case. The argument that grep doesn't matter has to extend to clear attestation and the git diff footgun not mattering either.
 
-Search ergonomics are a fitness property of the safety model — see [scoring methodology](scoring-methodology.md#why-grep) for the full rationale. Rust and Swift have the exact same challenge. This proposal offers an opportunity to evolve the memory safety domain: explicit markings are critical for the entirety of the unsafe domain. The addition of an explicit keyword will make agent enablement easier and increase confidence by eliminating the footgun and offering implicit skills for agents that are asked to review C#.
+Search ergonomics are a fitness property of the safety model — see [scoring methodology](https://github.com/richlander/missing-marker-trusted/blob/main/scoring-methodology.md#why-grep) for the full rationale. Rust and Swift have the exact same challenge. This proposal offers an opportunity to evolve the memory safety domain: explicit markings are critical for the entirety of the unsafe domain. The addition of an explicit keyword will make agent enablement easier and increase confidence by eliminating the footgun and offering implicit skills for agents that are asked to review C#.
 
 ## Scoring
 
-The [scoring methodology](scoring-methodology.md) defines the full framework. At a high level, the model rewards safety designs that are sound, explicit, and enforced, and penalizes designs that blur those signals.
+The [scoring methodology](https://github.com/richlander/missing-marker-trusted/blob/main/scoring-methodology.md) defines the full framework. At a high level, the model rewards safety designs that are sound, explicit, and enforced, and penalizes designs that blur those signals.
 
 | Design | Score |
 |--------|-------|
@@ -170,8 +170,8 @@ The detailed methodology then adds demerits for grep ambiguity and other audit f
 
 ## Supporting documents
 
-- [Notable patterns](notable-patterns.md) — real-world examples from .NET, Rust, and Swift standard libraries
-- [Language comparison](language-comparison.md) — grep-based discoverability across D, Rust, Swift, and C#, in ranking order
-- [Scoring methodology](scoring-methodology.md) — the grep test framework and detailed scoring
-- [CVE analysis](cve-analysis.md) — 40 .NET CVEs analyzed for safety boundary relevance
-- [Appendices](appendices.md) — lossless attestations, xz backdoor lesson, binary distribution, agent workflows, keyword lineage
+- [Notable patterns](https://github.com/richlander/missing-marker-trusted/blob/main/notable-patterns.md) — real-world examples from .NET, Rust, and Swift standard libraries
+- [Language comparison](https://github.com/richlander/missing-marker-trusted/blob/main/language-comparison.md) — grep-based discoverability across D, Rust, Swift, and C#, in ranking order
+- [Scoring methodology](https://github.com/richlander/missing-marker-trusted/blob/main/scoring-methodology.md) — the grep test framework and detailed scoring
+- [CVE analysis](https://github.com/richlander/missing-marker-trusted/blob/main/cve-analysis.md) — 40 .NET CVEs analyzed for safety boundary relevance
+- [Appendices](https://github.com/richlander/missing-marker-trusted/blob/main/appendices.md) — lossless attestations, xz backdoor lesson, binary distribution, agent workflows, keyword lineage
