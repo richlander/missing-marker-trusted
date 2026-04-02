@@ -9,7 +9,7 @@ The two keywords work together to enforce a workflow across methods, libraries, 
 - `unsafe` propagates a contract with obligation documentation
 - `safe` encapsulates the contract and discharges obligations with guards
 
-The supporting [CVE Analysis](https://github.com/richlander/missing-marker-trusted/blob/main/cve-analysis.md) demonstrates that CVEs are often in safe guards and can occur as often in boundary methods as in caller-unsafe methods.
+A set of supporting documents deepen the case for the `safe` keyword with additional analysis, listed at the end of this document. A couple are worth noting earlier. [CVE Analysis](https://github.com/richlander/missing-marker-trusted/blob/main/cve-analysis.md) demonstrates that CVEs are often in safe guards and can occur as often in caller-safe boundary methods as in caller-unsafe methods. [Language Comparison](https://github.com/richlander/missing-marker-trusted/blob/main/language-comparison.md) demonstrates the challenge of performing effective safety audits in absence of the `safe` keyword.
 
 ## Examples
 
@@ -44,7 +44,8 @@ safe void CopyTo(int sourceIndex, char[] destination, int destinationIndex, int 
     ArgumentOutOfRangeException.ThrowIfGreaterThan(destinationIndex, destination.Length - count);
     ArgumentOutOfRangeException.ThrowIfNegative(destinationIndex);
 
-    unsafe {
+    unsafe
+    {
         Buffer.Memmove(
             destination: ref Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(destination), destinationIndex),
             source: ref Unsafe.Add(ref _firstChar, sourceIndex),
