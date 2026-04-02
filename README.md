@@ -4,10 +4,6 @@ Memory safety v2 is one of the highest-stakes features we have taken on. It bear
 
 This proposal adds a `safe` keyword to C# so that safety boundaries are explicitly marked, grep-discoverable, lossless under `git blame`, and form exhaustive roots of the audit graph. The addition of `safe` makes safety markings symmetric: code participating in unsafety is marked with intent, not inferred by absence. It is important to remember that safe boundary methods harbor unsafety; they are made safe by a claim, not by compiler validation.
 
-## Executive summary
-
-This proposal asks C# to mark safety-boundary methods explicitly: methods that remain safe to call but contain interior unsafe operations. The goal is not to make the compiler prove the whole safety argument, but to make the reviewed boundary visible in signatures, diffs, grep results, and ordinary code review. The supporting documents make the case from three directions: worked examples, recent .NET CVEs, and cross-language comparison.
-
 ## Design summary
 
 The model distinguishes three roles:
