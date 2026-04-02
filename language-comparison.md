@@ -181,7 +181,7 @@ The 118 safety boundary functions — the most important audit targets — are i
 
 ## 6. D — 40.0%
 
-D independently arrived at the three-layer architecture with `@safe`, `@trusted`, and `@system`. It is the only shipping language with explicit safety boundaries.
+D independently arrived at the three-layer architecture with `@safe`, `@trusted`, and `@system`. Among the languages compared here, it is the only one with an explicit safety-boundary marker in the shipping language design.
 
 **Finding safety boundaries** — a single ripgrep command:
 
