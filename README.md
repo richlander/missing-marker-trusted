@@ -178,4 +178,5 @@ The detailed methodology then adds demerits for grep ambiguity and other audit f
 - [Language comparison](https://github.com/richlander/missing-marker-trusted/blob/main/language-comparison.md) — grep-based discoverability across D, Rust, Swift, and C#, in ranking order
 - [Scoring methodology](https://github.com/richlander/missing-marker-trusted/blob/main/scoring-methodology.md) — the grep test framework and detailed scoring
 - [CVE analysis](https://github.com/richlander/missing-marker-trusted/blob/main/cve-analysis.md) — 40 .NET CVEs analyzed for safety boundary relevance
+- [Research support](https://github.com/richlander/missing-marker-trusted/blob/main/research-support.md) — how explicit safety markers improve LLM accuracy and efficiency
 - [Appendices](https://github.com/richlander/missing-marker-trusted/blob/main/appendices.md) — optional background on lossless attestations, xz, binary distribution, agent workflows, and keyword lineage
